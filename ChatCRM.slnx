@@ -1,8 +1,10 @@
 <Solution>
-  <Project Path="ChatCRM.Application/ChatCRM.Application.csproj" />
-  <Project Path="ChatCRM.Common/ChatCRM.Common.csproj" />
-  <Project Path="ChatCRM.Domain/ChatCRM.Domain.csproj" />
-  <Project Path="ChatCRM.Infrastructure/ChatCRM.Infrastructure.csproj" />
-  <Project Path="ChatCRM.MVC/ChatCRM.MVC.csproj" />
-  <Project Path="ChatCRM.Persistence/ChatCRM.Persistence.csproj" />
+  <Folder Name="/src/">
+    <Project Path="ChatCRM.Application/ChatCRM.Application.csproj" />
+    <Project Path="ChatCRM.Common/ChatCRM.Common.csproj" />
+    <Project Path="ChatCRM.Domain/ChatCRM.Domain.csproj" />
+    <Project Path="ChatCRM.Infrastructure/ChatCRM.Infrastructure.csproj" />
+    <Project Path="ChatCRM.MVC/ChatCRM.MVC.csproj" />
+    <Project Path="ChatCRM.Persistence/ChatCRM.Persistence.csproj" />
+  </Folder>
 </Solution>
