@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ChatCRM.Application\ChatCRM.Application.csproj" />
+    <ProjectReference Include="..\ChatCRM.Common\ChatCRM.Common.csproj" />
+    <ProjectReference Include="..\ChatCRM.Domain\ChatCRM.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
