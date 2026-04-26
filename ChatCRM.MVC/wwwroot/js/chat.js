@@ -203,8 +203,8 @@ function buildBubble(msg) {
 
     if (isOutgoing) {
         const tick = document.createElement('span');
-        tick.textContent = msg.status >= 2 ? ' ✓✓' : ' ✓';
-        tick.style.color = msg.status >= 2 ? '#34b7f1' : '#aaa';
+        tick.className = 'msg-tick' + (msg.status >= 2 ? ' msg-tick-read' : '');
+        tick.innerHTML = renderIcon(msg.status >= 2 ? 'check-double' : 'check', 14);
         meta.appendChild(tick);
     }
 
@@ -331,4 +331,21 @@ function formatSidebarTime(iso) {
     const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     if (diff < 7 * 86400) return days[d.getDay()];
     return d.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' });
+}
+
+/* ─── Client-side icon renderer ──────────────────────────────────── */
+/* Mirrors the server-side _Icon partial. Same Lucide paths, identical
+   styling — used only when we need to inject SVG via JavaScript
+   (e.g. read receipts on dynamically-rendered message bubbles). */
+const ICON_PATHS = {
+    'check':         '<polyline points="20 6 9 17 4 12"/>',
+    'check-double':  '<polyline points="7 11 11 15 17 9"/><polyline points="13 11 17 15 23 9"/>',
+};
+
+function renderIcon(name, size = 16) {
+    const body = ICON_PATHS[name];
+    if (!body) return '';
+    return `<svg class="icon" width="${size}" height="${size}" viewBox="0 0 24 24" `
+         + `fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" `
+         + `stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }

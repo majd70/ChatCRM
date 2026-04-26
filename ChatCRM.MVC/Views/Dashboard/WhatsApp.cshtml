@@ -25,17 +25,23 @@
         ChatCRM
     </a>
     <nav class="chat-subnav">
-        <a href="/dashboard/chats" class="chat-subnav-link">💬 Chats</a>
-        <a href="/dashboard/whatsapp" class="chat-subnav-link active">📱 Numbers</a>
+        <a href="/dashboard/chats" class="chat-subnav-link has-icon">
+            @await Html.PartialAsync("_Icon", new IconModel("message-square", size: 16))
+            <span>Chats</span>
+        </a>
+        <a href="/dashboard/whatsapp" class="chat-subnav-link active has-icon">
+            @await Html.PartialAsync("_Icon", new IconModel("smartphone", size: 16))
+            <span>Numbers</span>
+        </a>
     </nav>
     <div class="chat-navbar-actions">
         <a asp-controller="Account" asp-action="Profile" class="chat-nav-icon" title="Profile">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            @await Html.PartialAsync("_Icon", new IconModel("user", size: 20, ariaLabel: "Profile"))
         </a>
         <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
             @Html.AntiForgeryToken()
             <button type="submit" class="chat-nav-icon" title="Sign out">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                @await Html.PartialAsync("_Icon", new IconModel("log-out", size: 20, ariaLabel: "Sign out"))
             </button>
         </form>
     </div>
@@ -45,10 +51,16 @@
 
     <div class="instances-header">
         <div>
-            <h1 class="instances-title">📱 WhatsApp Numbers</h1>
+            <h1 class="instances-title has-icon">
+                @await Html.PartialAsync("_Icon", new IconModel("smartphone", size: 24))
+                <span>WhatsApp Numbers</span>
+            </h1>
             <p class="instances-sub">Connect and manage all your linked WhatsApp lines.</p>
         </div>
-        <button class="btn-primary-round" onclick="openAddModal()">+ Add Number</button>
+        <button class="btn-primary-round has-icon" onclick="openAddModal()">
+            @await Html.PartialAsync("_Icon", new IconModel("plus", size: 16))
+            <span>Add Number</span>
+        </button>
     </div>
 
     <div class="instances-grid" id="instancesGrid">
@@ -77,18 +89,18 @@
                 </div>
                 <div class="instance-actions">
                     <a href="/dashboard/chats?instance=@inst.Id" class="btn-ghost action-when-connected">Open inbox</a>
-                    <button class="btn-ghost action-when-pending" onclick="openQr(@inst.Id)">📷 Show QR</button>
-                    <button class="btn-ghost action-when-disconnected" onclick="openQr(@inst.Id)">🔄 Reconnect</button>
+                    <button class="btn-ghost has-icon action-when-pending" onclick="openQr(@inst.Id)">
+                        @await Html.PartialAsync("_Icon", new IconModel("qr-code", size: 14))
+                        <span>Show QR</span>
+                    </button>
+                    <button class="btn-ghost has-icon action-when-disconnected" onclick="openQr(@inst.Id)">
+                        @await Html.PartialAsync("_Icon", new IconModel("refresh-cw", size: 14))
+                        <span>Reconnect</span>
+                    </button>
                     <button class="btn-ghost btn-danger action-when-connected" onclick="openDisconnect(@inst.Id, '@Html.Raw(Html.Encode(inst.DisplayName))')">Disconnect</button>
                     <button class="btn-ghost btn-danger action-when-pending" onclick="openDisconnect(@inst.Id, '@Html.Raw(Html.Encode(inst.DisplayName))')">Cancel</button>
                     <button class="btn-icon btn-icon-danger" title="Delete permanently" aria-label="Delete @inst.DisplayName" onclick="openDelete(@inst.Id, '@Html.Raw(Html.Encode(inst.DisplayName))')">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-                            <line x1="10" y1="11" x2="10" y2="17"></line>
-                            <line x1="14" y1="11" x2="14" y2="17"></line>
-                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
-                        </svg>
+                        @await Html.PartialAsync("_Icon", new IconModel("trash", size: 16))
                     </button>
                 </div>
             </div>
@@ -146,7 +158,10 @@
             </div>
 
             <div class="modal-actions">
-                <button class="btn-ghost" onclick="refreshQr()">🔄 Refresh QR</button>
+                <button class="btn-ghost has-icon" onclick="refreshQr()">
+                    @await Html.PartialAsync("_Icon", new IconModel("refresh-cw", size: 14))
+                    <span>Refresh QR</span>
+                </button>
                 <button class="btn-ghost" onclick="closeAddModal()">Close</button>
             </div>
         </div>
@@ -154,7 +169,7 @@
         <!-- Step 3: success -->
         <div class="modal-step d-none" id="step3">
             <div class="success-card">
-                <div class="success-icon">✓</div>
+                <div class="success-icon">@await Html.PartialAsync("_Icon", new IconModel("check", size: 28))</div>
                 <h3>Connected!</h3>
                 <p id="successDetails">Your WhatsApp number is now linked.</p>
             </div>
