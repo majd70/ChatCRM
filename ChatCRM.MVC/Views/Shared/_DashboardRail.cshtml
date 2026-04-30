@@ -29,12 +29,30 @@
         <a class="@Cls("contacts")" href="/dashboard/contacts" title="Contacts">
             @await Html.PartialAsync("_Icon", new IconModel("users", size: 22, ariaLabel: "Contacts"))
         </a>
-        <a class="@Cls("numbers")" href="/dashboard/whatsapp" title="Channels">
-            @await Html.PartialAsync("_Icon", new IconModel("smartphone", size: 22, ariaLabel: "Channels"))
-        </a>
-        <a class="@Cls("settings")" href="/dashboard/settings" title="Settings">
-            @await Html.PartialAsync("_Icon", new IconModel("settings", size: 22, ariaLabel: "Settings"))
-        </a>
+        <div class="rail-link-wrap" id="settingsRailWrap">
+            <button type="button"
+                    class="@Cls("settings")"
+                    id="settingsRailBtn"
+                    title="Settings"
+                    aria-haspopup="true"
+                    aria-expanded="false">
+                @await Html.PartialAsync("_Icon", new IconModel("settings", size: 22, ariaLabel: "Settings"))
+            </button>
+            <div class="settings-popover d-none" id="settingsPopover" role="menu">
+                <a class="settings-popover-item" href="/Account/Profile" role="menuitem">
+                    @await Html.PartialAsync("_Icon", new IconModel("user", size: 16))
+                    <span>Personal Settings</span>
+                </a>
+                <a class="settings-popover-item" href="/dashboard/settings/channels" role="menuitem">
+                    @await Html.PartialAsync("_Icon", new IconModel("smartphone", size: 16))
+                    <span>Channels</span>
+                </a>
+                <a class="settings-popover-item" href="/dashboard/settings/users" role="menuitem">
+                    @await Html.PartialAsync("_Icon", new IconModel("users", size: 16))
+                    <span>User Management</span>
+                </a>
+            </div>
+        </div>
     </nav>
 
     <div class="rail-bottom">
@@ -49,3 +67,35 @@
         </form>
     </div>
 </aside>
+
+<script>
+    (function () {
+        const btn  = document.getElementById('settingsRailBtn');
+        const menu = document.getElementById('settingsPopover');
+        if (!btn || !menu) return;
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const open = !menu.classList.contains('d-none');
+            menu.classList.toggle('d-none', open);
+            btn.setAttribute('aria-expanded', String(!open));
+        });
+
+        // Close on outside click
+        document.addEventListener('click', (e) => {
+            const wrap = document.getElementById('settingsRailWrap');
+            if (wrap && !wrap.contains(e.target)) {
+                menu.classList.add('d-none');
+                btn.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        // Close on Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                menu.classList.add('d-none');
+                btn.setAttribute('aria-expanded', 'false');
+            }
+        });
+    })();
+</script>

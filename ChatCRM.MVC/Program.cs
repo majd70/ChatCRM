@@ -85,6 +85,13 @@ builder.Services.AddValidatorsFromAssemblyContaining<LoginDtoValidator>();
 builder.Services.AddScoped<IEmailSender<User>, SmtpEmailSender>();
 builder.Services.AddScoped<IProfileImageStorageService, ProfileImageStorageService>();
 
+// Permission-based authorization
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
+    ChatCRM.Infrastructure.Authorization.PermissionAuthorizationHandler>();
+builder.Services.AddAuthorization();
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+builder.Services.AddScoped<IRoleManagementService, RoleManagementService>();
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -107,6 +114,11 @@ using (var scope = app.Services.CreateScope())
         {
             await DemoDataSeeder.SeedAsync(dbContext, logger);
         }
+
+        // RBAC seeding — roles + permission claims + first-user→Admin promotion.
+        var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+        var userManager = services.GetRequiredService<UserManager<User>>();
+        await RoleSeeder.SeedAsync(roleManager, userManager, logger);
     }
     catch (Exception ex)
     {

@@ -21,26 +21,7 @@
 
 <div class="settings-layout">
 
-    @* ─── Settings sub-nav ─── *@
-    <aside class="settings-side">
-        <h2 class="settings-side-title">Settings</h2>
-        <nav class="settings-nav">
-            <a href="/dashboard/settings/channels" class="settings-nav-link active has-icon">
-                @await Html.PartialAsync("_Icon", new IconModel("smartphone", size: 16))
-                <span>Channels</span>
-            </a>
-            <a href="#" class="settings-nav-link disabled has-icon" tabindex="-1" aria-disabled="true">
-                @await Html.PartialAsync("_Icon", new IconModel("user", size: 16))
-                <span>Team</span>
-                <span class="settings-soon">soon</span>
-            </a>
-            <a href="#" class="settings-nav-link disabled has-icon" tabindex="-1" aria-disabled="true">
-                @await Html.PartialAsync("_Icon", new IconModel("lock", size: 16))
-                <span>API & webhooks</span>
-                <span class="settings-soon">soon</span>
-            </a>
-        </nav>
-    </aside>
+    @await Html.PartialAsync("_SettingsSidenav", "channels")
 
     @* ─── Main content ─── *@
     <main class="settings-main">
