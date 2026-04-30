@@ -10,6 +10,14 @@ namespace ChatCRM.Domain.Entities
 
         public string? AvatarUrl { get; set; }
 
+        public LifecycleStage LifecycleStage { get; set; } = LifecycleStage.NewClient;
+
+        public string? Country { get; set; }
+
+        public string? Language { get; set; }
+
+        public bool IsBlocked { get; set; } = false;
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public ICollection<Conversation> Conversations { get; set; } = new List<Conversation>();

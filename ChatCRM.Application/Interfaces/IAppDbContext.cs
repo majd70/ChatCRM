@@ -10,6 +10,8 @@ namespace ChatCRM.Application.Interfaces
         DbSet<WhatsAppInstance> WhatsAppInstances { get; }
         DbSet<Conversation> Conversations { get; }
         DbSet<Message> Messages { get; }
+        DbSet<Tag> Tags { get; }
+        DbSet<ConversationTag> ConversationTags { get; }
 
         Task<int> SaveChangesAsync(CancellationToken cancellationToken);
     }

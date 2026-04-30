@@ -78,6 +78,7 @@ else
 }
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<IWhatsAppInstanceService, WhatsAppInstanceService>();
+builder.Services.AddScoped<IContactsService, ContactsService>();
 
 builder.Services.Configure<SmtpEmailOptions>(builder.Configuration.GetSection("Smtp"));
 builder.Services.AddValidatorsFromAssemblyContaining<LoginDtoValidator>();

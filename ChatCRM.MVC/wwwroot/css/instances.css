@@ -17,7 +17,7 @@
 }
 
 .chat-subnav-link:hover { background: #f0f2f5; color: #111; }
-.chat-subnav-link.active { background: #e8f5ea; color: #25d366; font-weight: 600; }
+.chat-subnav-link.active { background: var(--brand-50); color: var(--brand); font-weight: 600; }
 
 /* ─── Page layout ─────────────────────────────────────────────────── */
 .instances-page {
@@ -50,7 +50,7 @@
 }
 
 .btn-primary-round {
-    background: #25d366;
+    background: var(--brand);
     color: #fff;
     border: none;
     border-radius: 22px;
@@ -61,7 +61,7 @@
     transition: background 0.15s, transform 0.08s;
 }
 
-.btn-primary-round:hover { background: #1ebe5d; }
+.btn-primary-round:hover { background: var(--brand-hover); }
 .btn-primary-round:active { transform: scale(0.97); }
 .btn-primary-round:disabled { background: #b2dfdb; cursor: not-allowed; }
 
@@ -98,7 +98,7 @@
     flex-shrink: 0;
 }
 
-.status-connected    { background: #25d366; box-shadow: 0 0 0 3px rgba(37,211,102,0.15); }
+.status-connected    { background: var(--ok); box-shadow: 0 0 0 3px rgba(79,70,229,0.15); }
 .status-connecting   { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); animation: pulse 1.4s infinite; }
 .status-pending      { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); animation: pulse 1.4s infinite; }
 .status-disconnected { background: #ef4444; }
@@ -118,7 +118,7 @@
 .instance-phone {
     font-size: 18px;
     font-weight: 500;
-    color: #25d366;
+    color: var(--brand);
     letter-spacing: 0.5px;
 }
 
@@ -138,7 +138,7 @@
     letter-spacing: 0.3px;
 }
 
-.status-pill-connected    { background: #e8f5ea; color: #1e8e3e; }
+.status-pill-connected    { background: var(--ok-bg); color: var(--ok-text); }
 .status-pill-connecting   { background: #fff7e8; color: #b96b00; }
 .status-pill-pending      { background: #fff7e8; color: #b96b00; }
 .status-pill-disconnected { background: #fde7e7; color: #b91c1c; }
@@ -215,9 +215,9 @@
 }
 
 .instance-card-add:hover {
-    border-color: #25d366;
-    color: #25d366;
-    background: #f0fdf4;
+    border-color: var(--brand);
+    color: var(--brand);
+    background: var(--brand-50);
     box-shadow: none;
 }
 
@@ -304,8 +304,8 @@
 }
 
 .form-input:focus {
-    border-color: #25d366;
-    box-shadow: 0 0 0 3px rgba(37,211,102,0.12);
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px rgba(79,70,229,0.12);
 }
 
 .form-hint {
@@ -387,7 +387,7 @@
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: #25d366;
+    background: var(--brand);
     color: #fff;
     font-size: 28px;
     line-height: 56px;
@@ -505,7 +505,7 @@
 
 .instance-menu-item:last-child { border-bottom: none; }
 .instance-menu-item:hover { background: #f7fafc; }
-.instance-menu-item.active { background: #f0fdf4; }
+.instance-menu-item.active { background: var(--brand-50); }
 
 .instance-menu-body {
     flex: 1;
@@ -529,7 +529,7 @@
 }
 
 .check-mark {
-    color: #25d366;
+    color: var(--brand);
     font-weight: 700;
     font-size: 14px;
 }

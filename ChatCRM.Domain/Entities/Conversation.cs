@@ -1,5 +1,12 @@
 namespace ChatCRM.Domain.Entities
 {
+    public enum ConversationStatus : byte
+    {
+        Open = 0,
+        Snoozed = 1,
+        Closed = 2
+    }
+
     public class Conversation
     {
         public int Id { get; set; }
@@ -19,8 +26,13 @@ namespace ChatCRM.Domain.Entities
 
         public bool IsArchived { get; set; } = false;
 
+        public ConversationStatus Status { get; set; } = ConversationStatus.Open;
+
+        public DateTime? SnoozedUntil { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public ICollection<Message> Messages { get; set; } = new List<Message>();
+        public ICollection<ConversationTag> Tags { get; set; } = new List<ConversationTag>();
     }
 }

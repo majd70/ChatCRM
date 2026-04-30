@@ -16,6 +16,8 @@ namespace ChatCRM.Persistence
         public DbSet<WhatsAppInstance> WhatsAppInstances => Set<WhatsAppInstance>();
         public DbSet<Conversation> Conversations => Set<Conversation>();
         public DbSet<Message> Messages => Set<Message>();
+        public DbSet<Tag> Tags => Set<Tag>();
+        public DbSet<ConversationTag> ConversationTags => Set<ConversationTag>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -34,6 +36,8 @@ namespace ChatCRM.Persistence
                 builder.HasIndex(x => x.PhoneNumber).IsUnique();
                 builder.Property(x => x.DisplayName).HasMaxLength(100);
                 builder.Property(x => x.AvatarUrl).HasMaxLength(260);
+                builder.Property(x => x.Country).HasMaxLength(60);
+                builder.Property(x => x.Language).HasMaxLength(40);
             });
 
             modelBuilder.Entity<WhatsAppInstance>(builder =>
@@ -79,10 +83,37 @@ namespace ChatCRM.Persistence
                     .HasForeignKey(x => x.ConversationId)
                     .OnDelete(DeleteBehavior.Cascade);
 
+                builder.HasOne(x => x.AuthorUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.AuthorUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
                 builder.Property(x => x.ExternalId).HasMaxLength(100);
                 builder.HasIndex(x => x.ExternalId).IsUnique().HasFilter("[ExternalId] IS NOT NULL");
                 builder.HasIndex(x => x.ConversationId);
                 builder.HasIndex(x => x.SentAt);
+            });
+
+            modelBuilder.Entity<Tag>(builder =>
+            {
+                builder.Property(x => x.Name).HasMaxLength(50).IsRequired();
+                builder.HasIndex(x => x.Name).IsUnique();
+                builder.Property(x => x.Color).HasMaxLength(20).IsRequired();
+            });
+
+            modelBuilder.Entity<ConversationTag>(builder =>
+            {
+                builder.HasKey(x => new { x.ConversationId, x.TagId });
+
+                builder.HasOne(x => x.Conversation)
+                    .WithMany(x => x.Tags)
+                    .HasForeignKey(x => x.ConversationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                builder.HasOne(x => x.Tag)
+                    .WithMany(x => x.ConversationTags)
+                    .HasForeignKey(x => x.TagId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
 

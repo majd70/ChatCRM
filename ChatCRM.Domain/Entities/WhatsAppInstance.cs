@@ -16,6 +16,8 @@ namespace ChatCRM.Domain.Entities
 
         public string DisplayName { get; set; } = string.Empty;
 
+        public ChannelType ChannelType { get; set; } = ChannelType.WhatsApp;
+
         public string? PhoneNumber { get; set; }
 
         public string? OwnerJid { get; set; }

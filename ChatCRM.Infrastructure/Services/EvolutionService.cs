@@ -118,6 +118,7 @@ namespace ChatCRM.Infrastructure.Services
                 {
                     PhoneNumber = phone,
                     DisplayName = payload.Data.PushName,
+                    Country = PhoneCountryDetector.Detect(phone),
                     CreatedAt = DateTime.UtcNow
                 };
                 _db.WhatsAppContacts.Add(contact);

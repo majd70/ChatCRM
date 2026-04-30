@@ -11,43 +11,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WhatsApp Numbers — ChatCRM</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/tokens.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/chat.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/instances.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/inbox.css" asp-append-version="true" />
 </head>
-<body class="chat-shell">
+<body class="inbox-shell">
 
-<header class="chat-navbar">
-    <a class="chat-navbar-brand" asp-controller="Home" asp-action="Index">
-        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <rect width="28" height="28" rx="8" fill="#25d366"/>
-            <path d="M14 5C9.03 5 5 9.03 5 14c0 1.6.42 3.1 1.15 4.4L5 23l4.72-1.14A9 9 0 1014 5z" fill="white"/>
-        </svg>
-        ChatCRM
-    </a>
-    <nav class="chat-subnav">
-        <a href="/dashboard/chats" class="chat-subnav-link has-icon">
-            @await Html.PartialAsync("_Icon", new IconModel("message-square", size: 16))
-            <span>Chats</span>
-        </a>
-        <a href="/dashboard/whatsapp" class="chat-subnav-link active has-icon">
-            @await Html.PartialAsync("_Icon", new IconModel("smartphone", size: 16))
-            <span>Numbers</span>
-        </a>
-    </nav>
-    <div class="chat-navbar-actions">
-        <a asp-controller="Account" asp-action="Profile" class="chat-nav-icon" title="Profile">
-            @await Html.PartialAsync("_Icon", new IconModel("user", size: 20, ariaLabel: "Profile"))
-        </a>
-        <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
-            @Html.AntiForgeryToken()
-            <button type="submit" class="chat-nav-icon" title="Sign out">
-                @await Html.PartialAsync("_Icon", new IconModel("log-out", size: 20, ariaLabel: "Sign out"))
-            </button>
-        </form>
-    </div>
-</header>
+@await Html.PartialAsync("_DashboardRail", "numbers")
 
-<main class="instances-page">
+<main class="instances-page" style="flex:1; overflow-y:auto;">
 
     <div class="instances-header">
         <div>
