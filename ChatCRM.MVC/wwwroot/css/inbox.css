@@ -1165,3 +1165,74 @@ body.inbox-shell {
 
 .settings-popover-item:hover { background: var(--bg-muted); color: var(--text); }
 .settings-popover-item .icon { color: var(--text-muted); flex-shrink: 0; }
+
+/* ════════════════════════════════════════════════════════════════════
+   Shared form/button components — available on every dashboard page
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Primary soft button (indigo-tinted). Used for "Add user", "Add role",
+   "Export to Excel", and other non-destructive primary actions. */
+.btn-primary-soft {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    background: var(--brand-50);
+    color: var(--brand-text);
+    border: 1px solid var(--brand-100);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+}
+.btn-primary-soft:hover { background: var(--brand-100); border-color: var(--brand-200); }
+.btn-primary-soft:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--brand-ring); }
+.btn-primary-soft:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btn-primary-soft .btn-spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(79, 70, 229, 0.25);
+    border-top-color: var(--brand);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+
+/* Search input wrapper + icon. */
+.filter-search { position: relative; flex: 1; min-width: 240px; max-width: 380px; }
+.filter-search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-dim); }
+
+.filter-search input {
+    width: 100%;
+    padding: 8px 12px 8px 32px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-panel);
+    font-size: 13px;
+    outline: none;
+    color: var(--text);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.filter-search input:focus {
+    border-color: var(--brand-200);
+    box-shadow: 0 0 0 3px var(--brand-ring);
+}
+.filter-search input::placeholder { color: var(--text-dim); }
+
+/* Generic select with chevron. */
+.filter-select {
+    padding: 8px 28px 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-panel);
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 9px center;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.filter-select:focus { outline: none; border-color: var(--brand-200); box-shadow: 0 0 0 3px var(--brand-ring); }

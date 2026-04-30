@@ -70,5 +70,16 @@ namespace ChatCRM.Domain.Entities
         public const string Agent   = "Agent";
 
         public static readonly string[] All = { Admin, Manager, Agent };
+
+        /// <summary>Lucide icon name + accent color class for at-a-glance visual recognition per role.</summary>
+        public static readonly Dictionary<string, (string icon, string accent)> Visuals = new()
+        {
+            [Admin]   = ("shield",    "role-accent-red"),     // top authority
+            [Manager] = ("briefcase", "role-accent-amber"),   // operations lead
+            [Agent]   = ("headset",   "role-accent-indigo")   // front-line responder
+        };
+
+        public const string DefaultIcon   = "lock";
+        public const string DefaultAccent = "role-accent-slate";
     }
 }

@@ -3,6 +3,7 @@ using ChatCRM.Application.Users.DTOS;
 using ChatCRM.Domain.Entities;
 using ChatCRM.Infrastructure.Authorization;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ChatCRM.MVC.Controllers
@@ -11,20 +12,27 @@ namespace ChatCRM.MVC.Controllers
     public class RolesController : Controller
     {
         private readonly IRoleManagementService _service;
+        private readonly UserManager<User> _userManager;
         private readonly ILogger<RolesController> _logger;
 
-        public RolesController(IRoleManagementService service, ILogger<RolesController> logger)
+        public RolesController(IRoleManagementService service, UserManager<User> userManager, ILogger<RolesController> logger)
         {
             _service = service;
+            _userManager = userManager;
             _logger = logger;
         }
 
         [HttpGet("/dashboard/settings/roles")]
         [RequirePermission(Permissions.RolesManage)]
-        public IActionResult Index()
+        public async Task<IActionResult> Index()
         {
             ViewBag.Groups = Permissions.Groups;
             ViewBag.Labels = Permissions.Labels;
+
+            // Active role for the "Your role" highlight on the matching card.
+            var user = await _userManager.GetUserAsync(User);
+            ViewBag.ActiveRoles = user is null ? new List<string>() : (await _userManager.GetRolesAsync(user)).ToList();
+
             return View();
         }
 
