@@ -3,13 +3,29 @@
 #
 # Use this whenever ngrok restarts and gives you a new free subdomain.
 #
+# Secrets are NOT hardcoded — they're read from ChatCRM.MVC/appsettings.Development.json
+# (which is gitignored). If you need to rotate them, edit that file and re-run this
+# script to push the new webhook secret to every instance.
+#
 # Usage:  pwsh ./scripts/reregister-all-webhooks.ps1
 
 $ErrorActionPreference = "Stop"
 
-$EvolutionUrl    = "https://evolution-api-production-0962.up.railway.app"
-$EvolutionApiKey = "76a0c887fa205453e58e784babe34026b60ac9fce76e1a4ccf2e238cdd9d6451"
-$WebhookSecret   = "chatcrm-webhook-2b07c122ac26ef37"
+$configPath = Join-Path $PSScriptRoot "..\ChatCRM.MVC\appsettings.Development.json"
+if (-not (Test-Path $configPath)) {
+    Write-Host "[ERROR] $configPath not found. Copy appsettings.json and fill in real Evolution credentials." -ForegroundColor Red
+    exit 1
+}
+
+$config = Get-Content $configPath -Raw | ConvertFrom-Json
+$EvolutionUrl    = $config.Evolution.BaseUrl
+$EvolutionApiKey = $config.Evolution.ApiKey
+$WebhookSecret   = $config.Evolution.WebhookSecret
+
+if (-not $EvolutionUrl -or -not $EvolutionApiKey -or -not $WebhookSecret) {
+    Write-Host "[ERROR] Evolution.BaseUrl / ApiKey / WebhookSecret missing in appsettings.Development.json" -ForegroundColor Red
+    exit 1
+}
 
 Write-Host "==> Reading ngrok URL from http://127.0.0.1:4040 ..." -ForegroundColor Cyan
 try {
