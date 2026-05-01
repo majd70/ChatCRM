@@ -9,5 +9,6 @@ namespace ChatCRM.Application.Chats.DTOs
         public MessageDirection Direction { get; set; }
         public MessageStatus Status { get; set; }
         public DateTime SentAt { get; set; }
+        public string? AuthorName { get; set; }
     }
 }

@@ -3,7 +3,9 @@ namespace ChatCRM.Domain.Entities
     public enum MessageDirection : byte
     {
         Incoming = 0,
-        Outgoing = 1
+        Outgoing = 1,
+        /// <summary>Internal team note — not sent to WhatsApp, visible only to agents.</summary>
+        Note = 2
     }
 
     public enum MessageStatus : byte
@@ -32,5 +34,11 @@ namespace ChatCRM.Domain.Entities
         public string? ExternalId { get; set; }
 
         public DateTime SentAt { get; set; } = DateTime.UtcNow;
+
+        /// <summary>
+        /// Author user ID for internal notes (null for incoming/outgoing chat messages).
+        /// </summary>
+        public string? AuthorUserId { get; set; }
+        public User? AuthorUser { get; set; }
     }
 }

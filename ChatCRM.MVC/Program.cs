@@ -77,11 +77,20 @@ else
     builder.Services.AddScoped<IEvolutionService, EvolutionService>();
 }
 builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<IWhatsAppInstanceService, WhatsAppInstanceService>();
+builder.Services.AddScoped<IContactsService, ContactsService>();
 
 builder.Services.Configure<SmtpEmailOptions>(builder.Configuration.GetSection("Smtp"));
 builder.Services.AddValidatorsFromAssemblyContaining<LoginDtoValidator>();
 builder.Services.AddScoped<IEmailSender<User>, SmtpEmailSender>();
 builder.Services.AddScoped<IProfileImageStorageService, ProfileImageStorageService>();
+
+// Permission-based authorization
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
+    ChatCRM.Infrastructure.Authorization.PermissionAuthorizationHandler>();
+builder.Services.AddAuthorization();
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+builder.Services.AddScoped<IRoleManagementService, RoleManagementService>();
 
 var app = builder.Build();
 
@@ -96,10 +105,20 @@ using (var scope = app.Services.CreateScope())
         dbContext.Database.Migrate();
         logger.LogInformation("Database migrations applied successfully.");
 
+        await InstanceSeeder.SeedDefaultIfEmptyAsync(
+            dbContext,
+            builder.Configuration["Evolution:InstanceName"],
+            logger);
+
         if (useMockEvolution)
         {
             await DemoDataSeeder.SeedAsync(dbContext, logger);
         }
+
+        // RBAC seeding — roles + permission claims + first-user→Admin promotion.
+        var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+        var userManager = services.GetRequiredService<UserManager<User>>();
+        await RoleSeeder.SeedAsync(roleManager, userManager, logger);
     }
     catch (Exception ex)
     {
