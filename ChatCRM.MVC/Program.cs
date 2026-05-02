@@ -2,13 +2,18 @@ using ChatCRM.Application.Interfaces;
 using ChatCRM.Application.Users.DTOS;
 using ChatCRM.Domain.Entities;
 using ChatCRM.Infrastructure.Services;
+using ChatCRM.MVC.Localization;
 using ChatCRM.MVC.Services;
 using ChatCRM.Persistence;
 using FluentValidation;
 using FluentValidation.AspNetCore;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Localization;
+using System.Globalization;
 
 DotEnvLoader.Load(
     Path.Combine(Directory.GetCurrentDirectory(), ".env"),
@@ -57,7 +62,34 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.ExpireTimeSpan = TimeSpan.FromDays(14);
 });
 
-builder.Services.AddControllersWithViews();
+// ── Localization (custom JSON-backed IStringLocalizer) ────────────
+builder.Services.AddSingleton<JsonStringLocalizer.ResourceCache>();
+builder.Services.AddSingleton<IStringLocalizerFactory, JsonStringLocalizerFactory>();
+builder.Services.AddSingleton<IStringLocalizer>(sp =>
+    sp.GetRequiredService<IStringLocalizerFactory>().Create(typeof(object)));
+
+var supportedCultures = new[] { "en", "ru", "ro", "tr" }
+    .Select(c => new CultureInfo(c))
+    .ToList();
+
+builder.Services.Configure<RequestLocalizationOptions>(opts =>
+{
+    opts.DefaultRequestCulture = new RequestCulture("en");
+    opts.SupportedCultures = supportedCultures;
+    opts.SupportedUICultures = supportedCultures;
+    // Provider order: ?culture=xx → cookie → Accept-Language header.
+    // Auto-detection from the browser is the default fallback before we hit "en".
+    opts.RequestCultureProviders =
+    [
+        new QueryStringRequestCultureProvider(),
+        new CookieRequestCultureProvider(),
+        new AcceptLanguageHeaderRequestCultureProvider()
+    ];
+});
+
+builder.Services.AddControllersWithViews()
+    .AddViewLocalization()
+    .AddDataAnnotationsLocalization();
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddFluentValidationClientsideAdapters();
 
@@ -147,6 +179,10 @@ app.UseWhen(
     branch => branch.UseHttpsRedirection());
 
 app.UseStaticFiles();
+
+// Apply request culture (query > cookie > Accept-Language) to every request.
+// Setting CurrentCulture also drives DateTime/number/currency formatting throughout the request.
+app.UseRequestLocalization();
 
 app.UseRouting();
 app.UseAuthentication();

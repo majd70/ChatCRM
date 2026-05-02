@@ -1,15 +1,16 @@
 @model LoginDto
+@inject Microsoft.Extensions.Localization.IStringLocalizer T
 
 @{
-    ViewData["Title"] = "Sign in";
+    ViewData["Title"] = T["Auth.Login.Title"].Value;
 }
 
 <section class="auth-page">
     <div class="auth-card">
         <div class="auth-copy">
-            <span class="eyebrow">Welcome back</span>
-            <h1>Sign in to ChatCRM</h1>
-            <p>Use your verified email address and password to continue.</p>
+            <span class="eyebrow">@T["Auth.Login.Eyebrow"]</span>
+            <h1>@T["Auth.Login.Heading"]</h1>
+            <p>@T["Auth.Login.Sub"]</p>
         </div>
 
         <form asp-action="Login" method="post" novalidate>
@@ -20,19 +21,19 @@
 
             <div class="mb-3">
                 <label asp-for="Email" class="form-label"></label>
-                <input asp-for="Email" class="form-control form-control-lg" autocomplete="email" placeholder="name@company.com" />
+                <input asp-for="Email" class="form-control form-control-lg" autocomplete="email" placeholder="@T["Auth.Login.EmailPlaceholder"]" />
                 <span asp-validation-for="Email" class="text-danger"></span>
             </div>
 
             <div class="mb-3">
                 <div class="d-flex justify-content-between align-items-center">
                     <label asp-for="Password" class="form-label mb-0"></label>
-                    <a asp-action="ForgotPassword" class="auth-link">Forgot password?</a>
+                    <a asp-action="ForgotPassword" class="auth-link">@T["Auth.Login.Forgot"]</a>
                 </div>
                 <div class="password-field">
-                    <input asp-for="Password" class="form-control form-control-lg" autocomplete="current-password" placeholder="Enter your password" />
-                    <button type="button" class="password-toggle" data-password-toggle aria-label="Show password" aria-pressed="false">
-                        <span class="password-toggle-text">Show</span>
+                    <input asp-for="Password" class="form-control form-control-lg" autocomplete="current-password" placeholder="@T["Auth.Login.PasswordPlaceholder"]" />
+                    <button type="button" class="password-toggle" data-password-toggle aria-label="@T["Auth.Login.ShowPassword"]" aria-pressed="false">
+                        <span class="password-toggle-text">@T["Auth.Login.Show"]</span>
                     </button>
                 </div>
                 <span asp-validation-for="Password" class="text-danger"></span>
@@ -40,13 +41,13 @@
 
             <div class="form-check mb-4">
                 <input asp-for="RememberMe" class="form-check-input" />
-                <label asp-for="RememberMe" class="form-check-label">Keep me signed in on this device</label>
+                <label asp-for="RememberMe" class="form-check-label">@T["Auth.Login.RememberMe"]</label>
             </div>
 
-            <button type="submit" class="btn btn-accent w-100 btn-lg">Sign in</button>
+            <button type="submit" class="btn btn-accent w-100 btn-lg">@T["Auth.Login.Submit"]</button>
         </form>
 
-        <p class="auth-footer">Need an account? <a asp-action="Register" class="auth-link">Create one here</a>.</p>
+        <p class="auth-footer">@T["Auth.Login.Footer"] <a asp-action="Register" class="auth-link">@T["Auth.Login.CreateOne"]</a>.</p>
     </div>
 </section>
 

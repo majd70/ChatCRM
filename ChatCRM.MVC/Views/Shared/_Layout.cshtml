@@ -1,8 +1,11 @@
+@using System.Globalization
 @inject Microsoft.AspNetCore.Identity.UserManager<User> UserManager
+@inject Microsoft.Extensions.Localization.IStringLocalizer T
+@inject ChatCRM.MVC.Localization.JsonStringLocalizer.ResourceCache LocalizationCache
 
 @{
     User? currentUser = null;
-    var navDisplayName = User.Identity?.Name ?? "Account";
+    var navDisplayName = User.Identity?.Name ?? T["Layout.Nav.AccountFallback"].Value;
     string? navImagePath = null;
     var navInitials = "U";
 
@@ -12,7 +15,7 @@
         if (currentUser is not null)
         {
             var fullName = string.Join(" ", new[] { currentUser.FirstName, currentUser.LastName }.Where(x => !string.IsNullOrWhiteSpace(x)));
-            navDisplayName = string.IsNullOrWhiteSpace(fullName) ? (currentUser.Email ?? currentUser.UserName ?? "Account") : fullName;
+            navDisplayName = string.IsNullOrWhiteSpace(fullName) ? (currentUser.Email ?? currentUser.UserName ?? T["Layout.Nav.AccountFallback"].Value) : fullName;
             navImagePath = currentUser.ProfileImagePath;
 
             var initialsSource = !string.IsNullOrWhiteSpace(fullName) ? fullName : (currentUser.Email ?? "U");
@@ -28,10 +31,17 @@
             }
         }
     }
+
+    // Ship the active culture's strings to the browser so layout-loaded scripts can call t(...)
+    var culture = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+    var translations = LocalizationCache.Load(culture) ?? LocalizationCache.Load("en") ?? new Dictionary<string, string>();
+    var translationsJson = System.Text.Json.JsonSerializer.Serialize(translations);
+    var htmlLang = culture;
+    var htmlDir = (culture is "ar" or "he" or "fa" or "ur") ? "rtl" : "ltr";
 }
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="@htmlLang" dir="@htmlDir">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -40,6 +50,11 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/ChatCRM.MVC.styles.css" asp-append-version="true" />
+    <script>
+        window.__i18n__ = @Html.Raw(translationsJson);
+        window.__i18nCulture__ = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(culture));
+    </script>
+    <script src="~/js/i18n.js" asp-append-version="true"></script>
 </head>
 <body>
     <div class="app-shell">
@@ -53,22 +68,23 @@
                     <div id="mainNav" class="collapse navbar-collapse">
                         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                             <li class="nav-item">
-                                <a class="nav-link" asp-controller="Home" asp-action="Index">Home</a>
+                                <a class="nav-link" asp-controller="Home" asp-action="Index">@T["Layout.Nav.Home"]</a>
                             </li>
                             @if (User.Identity?.IsAuthenticated == true)
                             {
                                 <li class="nav-item">
                                     <a class="nav-link has-icon" href="/dashboard/chats">
                                         @await Html.PartialAsync("_Icon", new IconModel("message-square", size: 16))
-                                        <span>Chats</span>
+                                        <span>@T["Layout.Nav.Chats"]</span>
                                     </a>
                                 </li>
                             }
                             <li class="nav-item">
-                                <a class="nav-link" asp-controller="Home" asp-action="Privacy">Privacy</a>
+                                <a class="nav-link" asp-controller="Home" asp-action="Privacy">@T["Layout.Nav.Privacy"]</a>
                             </li>
                         </ul>
                         <div class="d-flex align-items-center gap-2 ms-lg-3">
+                            @await Html.PartialAsync("_LanguageSwitcher")
                             @if (User.Identity?.IsAuthenticated == true)
                             {
                                 <a asp-controller="Account" asp-action="Profile" class="profile-chip">
@@ -82,18 +98,18 @@
                                     }
                                     <span class="profile-chip-copy">
                                         <strong>@navDisplayName</strong>
-                                        <span>Manage profile</span>
+                                        <span>@T["Layout.Nav.ManageProfile"]</span>
                                     </span>
                                 </a>
                                 <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
                                     @Html.AntiForgeryToken()
-                                    <button type="submit" class="btn btn-outline-light btn-sm">Sign out</button>
+                                    <button type="submit" class="btn btn-outline-light btn-sm">@T["Layout.Nav.SignOut"]</button>
                                 </form>
                             }
                             else
                             {
-                                <a class="btn btn-outline-light btn-sm" asp-controller="Account" asp-action="Login">Sign in</a>
-                                <a class="btn btn-accent btn-sm" asp-controller="Account" asp-action="Register">Create account</a>
+                                <a class="btn btn-outline-light btn-sm" asp-controller="Account" asp-action="Login">@T["Layout.Nav.SignIn"]</a>
+                                <a class="btn btn-accent btn-sm" asp-controller="Account" asp-action="Register">@T["Layout.Nav.CreateAccount"]</a>
                             }
                         </div>
                     </div>
@@ -121,8 +137,8 @@
 
         <footer class="site-footer">
             <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-                <span>&copy; 2026 ChatCRM</span>
-                <a asp-controller="Home" asp-action="Privacy">Privacy</a>
+                <span>@T["Layout.Footer.Copy"]</span>
+                <a asp-controller="Home" asp-action="Privacy">@T["Layout.Footer.Privacy"]</a>
             </div>
         </footer>
     </div>

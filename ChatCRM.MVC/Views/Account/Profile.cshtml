@@ -1,7 +1,8 @@
 @model UpdateProfileDto
+@inject Microsoft.Extensions.Localization.IStringLocalizer T
 
 @{
-    ViewData["Title"] = "Your profile";
+    ViewData["Title"] = T["Profile.Title"].Value;
     var displayName = string.Join(" ", new[] { Model.FirstName, Model.LastName }.Where(x => !string.IsNullOrWhiteSpace(x)));
     if (string.IsNullOrWhiteSpace(displayName))
     {
@@ -37,27 +38,27 @@
             </div>
 
             <div class="profile-hero-copy">
-                <span class="eyebrow">Account profile</span>
+                <span class="eyebrow">@T["Profile.Eyebrow"]</span>
                 <h1>@displayName</h1>
-                <p>Update your contact details and choose a profile image that appears across the app.</p>
+                <p>@T["Profile.Sub"]</p>
             </div>
 
             <div class="profile-status-list">
                 <div class="mini-stat">
-                    <span class="mini-stat-label">Email status</span>
-                    <strong>@(Model.EmailConfirmed ? "Verified" : "Verification pending")</strong>
+                    <span class="mini-stat-label">@T["Profile.EmailStatus"]</span>
+                    <strong>@(Model.EmailConfirmed ? T["Profile.EmailVerified"].Value : T["Profile.EmailPending"].Value)</strong>
                 </div>
                 <div class="mini-stat">
-                    <span class="mini-stat-label">Photo rules</span>
-                    <strong>JPG, PNG, or WEBP up to 2 MB</strong>
+                    <span class="mini-stat-label">@T["Profile.PhotoRulesLabel"]</span>
+                    <strong>@T["Profile.PhotoRules"]</strong>
                 </div>
             </div>
         </aside>
 
         <div class="profile-form-card">
             <div class="profile-form-header">
-                <h2>Edit profile</h2>
-                <p>Changes are saved to your current account only. If you change your email, we'll ask you to verify the new address.</p>
+                <h2>@T["Profile.EditTitle"]</h2>
+                <p>@T["Profile.EditSub"]</p>
             </div>
 
             <form asp-action="Profile" method="post" enctype="multipart/form-data" novalidate data-loading-form>
@@ -68,49 +69,49 @@
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label asp-for="FirstName" class="form-label"></label>
-                        <input asp-for="FirstName" class="form-control form-control-lg" autocomplete="given-name" placeholder="First name" />
+                        <input asp-for="FirstName" class="form-control form-control-lg" autocomplete="given-name" placeholder="@T["Profile.FirstNamePlaceholder"]" />
                         <span asp-validation-for="FirstName" class="text-danger"></span>
                     </div>
                     <div class="col-md-6">
                         <label asp-for="LastName" class="form-label"></label>
-                        <input asp-for="LastName" class="form-control form-control-lg" autocomplete="family-name" placeholder="Last name" />
+                        <input asp-for="LastName" class="form-control form-control-lg" autocomplete="family-name" placeholder="@T["Profile.LastNamePlaceholder"]" />
                         <span asp-validation-for="LastName" class="text-danger"></span>
                     </div>
                     <div class="col-md-6">
                         <label asp-for="Email" class="form-label"></label>
-                        <input asp-for="Email" class="form-control form-control-lg" autocomplete="email" placeholder="name@company.com" />
+                        <input asp-for="Email" class="form-control form-control-lg" autocomplete="email" placeholder="@T["Profile.EmailPlaceholder"]" />
                         <span asp-validation-for="Email" class="text-danger"></span>
                     </div>
                     <div class="col-md-6">
                         <label asp-for="PhoneNumber" class="form-label"></label>
-                        <input asp-for="PhoneNumber" class="form-control form-control-lg" autocomplete="tel" placeholder="+20 100 000 0000" />
+                        <input asp-for="PhoneNumber" class="form-control form-control-lg" autocomplete="tel" placeholder="@T["Profile.PhonePlaceholder"]" />
                         <span asp-validation-for="PhoneNumber" class="text-danger"></span>
                     </div>
                 </div>
 
                 <div class="profile-upload-card mt-4">
                     <div class="profile-upload-copy">
-                        <h3>Profile photo</h3>
-                        <p>Upload a clear square-friendly photo. Unsupported files, empty files, and large images will be rejected.</p>
+                        <h3>@T["Profile.Photo.Title"]</h3>
+                        <p>@T["Profile.Photo.Sub"]</p>
                     </div>
                     <div>
-                        <label for="profileImage" class="form-label">Upload image</label>
+                        <label for="profileImage" class="form-label">@T["Profile.Photo.UploadLabel"]</label>
                         <input id="profileImage" name="profileImage" type="file" class="form-control form-control-lg" accept=".jpg,.jpeg,.png,.webp" data-profile-image-input />
-                        <div class="form-hint">Accepted formats: JPG, PNG, WEBP. Maximum file size: 2 MB.</div>
+                        <div class="form-hint">@T["Profile.Photo.Hint"]</div>
                     </div>
 
                     @if (!string.IsNullOrWhiteSpace(Model.ProfileImagePath))
                     {
                         <div class="form-check mt-3">
                             <input asp-for="RemoveProfileImage" class="form-check-input" />
-                            <label asp-for="RemoveProfileImage" class="form-check-label">Remove my current profile photo</label>
+                            <label asp-for="RemoveProfileImage" class="form-check-label">@T["Profile.Photo.Remove"]</label>
                         </div>
                     }
                 </div>
 
                 <div class="profile-actions">
-                    <button type="submit" class="btn btn-accent btn-lg" data-loading-text="Saving...">Save changes</button>
-                    <a asp-controller="Home" asp-action="Index" class="btn btn-outline-primary btn-lg">Back to home</a>
+                    <button type="submit" class="btn btn-accent btn-lg" data-loading-text="@T["Profile.Saving"]">@T["Profile.SaveChanges"]</button>
+                    <a asp-controller="Home" asp-action="Index" class="btn btn-outline-primary btn-lg">@T["Profile.BackHome"]</a>
                 </div>
             </form>
         </div>

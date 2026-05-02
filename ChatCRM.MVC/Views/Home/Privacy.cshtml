@@ -1,6 +1,7 @@
-﻿@{
-    ViewData["Title"] = "Privacy Policy";
+@inject Microsoft.Extensions.Localization.IStringLocalizer T
+@{
+    ViewData["Title"] = T["Privacy.Title"].Value;
 }
 <h1>@ViewData["Title"]</h1>
 
-<p>Use this page to detail your site's privacy policy.</p>
+<p>@T["Privacy.Body"]</p>

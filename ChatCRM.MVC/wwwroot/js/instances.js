@@ -13,7 +13,7 @@ const hub = new signalR.HubConnectionBuilder()
     .build();
 
 const STATUS_NAMES  = ['pending', 'connecting', 'connected', 'disconnected'];
-const STATUS_LABELS = ['Awaiting QR scan', 'Connecting', 'Connected', 'Disconnected'];
+const STATUS_LABEL_KEYS = ['WhatsApp.Status.Pending', 'WhatsApp.Status.Connecting', 'WhatsApp.Status.Connected', 'WhatsApp.Status.Disconnected'];
 
 hub.on('InstanceStatusChanged', ({ id, status }) => {
     updateCardStatus(id, status);
@@ -71,7 +71,8 @@ function updateCardStatus(instanceId, status) {
     if (!card) return;
 
     const name  = STATUS_NAMES[status]  ?? 'disconnected';
-    const label = STATUS_LABELS[status] ?? '—';
+    const labelKey = STATUS_LABEL_KEYS[status];
+    const label = labelKey ? t(labelKey) : '—';
 
     card.dataset.cardStatus = name;          // toggles which actions are visible (CSS-driven)
 
@@ -88,7 +89,7 @@ function updateCardStatus(instanceId, status) {
         const ts = card.querySelector('[data-last-connected]');
         if (ts) {
             ts.dataset.lastConnected = new Date().toISOString();
-            ts.textContent = `Connected just now`;
+            ts.textContent = t('WhatsApp.Connected.JustNow');
         }
     }
 }
@@ -98,16 +99,16 @@ function updateRelativeTimes() {
     document.querySelectorAll('[data-last-connected]').forEach(el => {
         const iso = el.dataset.lastConnected;
         if (!iso) return;
-        el.textContent = `Connected ${formatRelative(new Date(iso))}`;
+        el.textContent = t('WhatsApp.Connected.Relative', formatRelative(new Date(iso)));
     });
 }
 
 function formatRelative(dt) {
     const diff = (Date.now() - dt.getTime()) / 1000;
-    if (diff < 60)        return 'just now';
-    if (diff < 3600)      return `${Math.floor(diff / 60)} min ago`;
-    if (diff < 86400)     return `${Math.floor(diff / 3600)} hr ago`;
-    return `${Math.floor(diff / 86400)} days ago`;
+    if (diff < 60)        return t('WhatsApp.Time.JustNow');
+    if (diff < 3600)      return t('WhatsApp.Time.MinutesAgo', Math.floor(diff / 60));
+    if (diff < 86400)     return t('WhatsApp.Time.HoursAgo', Math.floor(diff / 3600));
+    return t('WhatsApp.Time.DaysAgo', Math.floor(diff / 86400));
 }
 
 setInterval(updateRelativeTimes, 60_000);
@@ -140,7 +141,7 @@ async function submitCreate() {
     const name = input.value.trim();
 
     if (!name) {
-        showCreateError('Please enter a display name.');
+        showCreateError(t('WhatsApp.Validation.NameRequired'));
         input.focus();
         return;
     }
@@ -162,8 +163,8 @@ async function submitCreate() {
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
             const msg = resp.status === 409
-                ? (err.error ?? 'A number with this name already exists.')
-                : (err.error ?? `Failed to create instance (HTTP ${resp.status}).`);
+                ? (err.error ?? t('WhatsApp.Error.Conflict'))
+                : (err.error ?? t('WhatsApp.Error.CreateFailed', resp.status));
             showCreateError(msg);
             return;
         }
@@ -177,7 +178,7 @@ async function submitCreate() {
         await fetchQr();
         startStatusPolling();
     } catch (e) {
-        showCreateError('Network error: ' + e.message);
+        showCreateError(t('WhatsApp.Error.NetworkError', e.message));
     } finally {
         isCreating = false;
         setCreateButtonState('idle');
@@ -196,13 +197,13 @@ function setCreateButtonState(state) {
         btn.disabled = true;
         if (cancel) cancel.disabled = true;
         if (input) input.disabled = true;
-        label.textContent = 'Creating…';
+        label.textContent = t('WhatsApp.Step.Creating');
         spinner.classList.remove('d-none');
     } else {
         btn.disabled = false;
         if (cancel) cancel.disabled = false;
         if (input) input.disabled = false;
-        label.textContent = 'Next →';
+        label.textContent = t('Action.Next');
         spinner.classList.add('d-none');
     }
 }
@@ -234,7 +235,7 @@ async function fetchQr() {
     try {
         const resp = await fetch(`/api/instances/${creatingInstanceId}/qr`);
         if (!resp.ok) {
-            box.innerHTML = '<div style="color:#ef4444;font-size:13px;text-align:center;">Failed to load QR</div>';
+            box.innerHTML = `<div style="color:#ef4444;font-size:13px;text-align:center;">${escapeHtmlSimple(t('WhatsApp.QR.LoadFailed'))}</div>`;
             return;
         }
         const data = await resp.json();
@@ -248,11 +249,15 @@ async function fetchQr() {
             const src = data.qrBase64.startsWith('data:') ? data.qrBase64 : `data:image/png;base64,${data.qrBase64}`;
             box.innerHTML = `<img src="${src}" alt="QR" />`;
         } else {
-            box.innerHTML = '<div style="color:#94a3b8;font-size:13px;text-align:center;">QR not ready — tap Refresh.</div>';
+            box.innerHTML = `<div style="color:#94a3b8;font-size:13px;text-align:center;">${escapeHtmlSimple(t('WhatsApp.QR.NotReady'))}</div>`;
         }
     } catch (e) {
-        box.innerHTML = '<div style="color:#ef4444;font-size:13px;text-align:center;">' + e.message + '</div>';
+        box.innerHTML = '<div style="color:#ef4444;font-size:13px;text-align:center;">' + escapeHtmlSimple(e.message) + '</div>';
     }
+}
+
+function escapeHtmlSimple(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
 function refreshQr() { fetchQr(); }
@@ -287,7 +292,7 @@ function showSuccess(data) {
     document.getElementById('step3').classList.remove('d-none');
     if (data?.phoneNumber) {
         document.getElementById('successDetails').textContent =
-            `Linked as +${data.phoneNumber}`;
+            t('WhatsApp.Success.Linked', data.phoneNumber);
     }
 }
 
@@ -305,7 +310,8 @@ function openQr(instanceId) {
 /* ─── Disconnect ─────────────────────────────────────────────────── */
 function openDisconnect(id, name) {
     disconnectTargetId = id;
-    document.getElementById('disconnectName').textContent = name;
+    const titleEl = document.getElementById('disconnectTitle');
+    if (titleEl) titleEl.textContent = t('WhatsApp.Disconnect.Title', name);
     document.getElementById('disconnectModal').classList.remove('d-none');
 }
 
@@ -323,13 +329,13 @@ async function confirmDisconnect() {
         });
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
-            alert(err.error ?? 'Failed to disconnect.');
+            alert(err.error ?? t('WhatsApp.Disconnect.Failed'));
             return;
         }
         closeDisconnect();
         location.reload();
     } catch (e) {
-        alert('Network error: ' + e.message);
+        alert(t('WhatsApp.Error.NetworkError', e.message));
     }
 }
 
@@ -338,7 +344,8 @@ let deleteTargetId = null;
 
 function openDelete(id, name) {
     deleteTargetId = id;
-    document.getElementById('deleteName').textContent = name;
+    const titleEl = document.getElementById('deleteTitle');
+    if (titleEl) titleEl.textContent = t('WhatsApp.Delete.Title', name);
     document.getElementById('deleteConfirmInput').value = '';
     document.getElementById('deleteConfirmBtn').disabled = true;
     document.getElementById('deleteModal').classList.remove('d-none');
@@ -359,7 +366,7 @@ async function confirmDelete() {
     if (!deleteTargetId) return;
     const btn = document.getElementById('deleteConfirmBtn');
     btn.disabled = true;
-    btn.textContent = 'Deleting…';
+    btn.textContent = t('WhatsApp.Delete.Pending');
 
     try {
         const resp = await fetch(`/api/instances/${deleteTargetId}`, {
@@ -368,16 +375,16 @@ async function confirmDelete() {
         });
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
-            alert(err.error ?? 'Failed to delete.');
+            alert(err.error ?? t('WhatsApp.Delete.Failed'));
             btn.disabled = false;
-            btn.textContent = 'Delete forever';
+            btn.textContent = t('WhatsApp.Delete.Action');
             return;
         }
         closeDelete();
         location.reload();
     } catch (e) {
-        alert('Network error: ' + e.message);
+        alert(t('WhatsApp.Error.NetworkError', e.message));
         btn.disabled = false;
-        btn.textContent = 'Delete forever';
+        btn.textContent = t('WhatsApp.Delete.Action');
     }
 }

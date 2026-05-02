@@ -189,7 +189,7 @@ async function assignTo(userId) {
 
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
-            showToast(err.error || 'Failed to update assignment.', 'error');
+            showToast(err.error || t('Toast.AssignFailed'), 'error');
             return;
         }
 
@@ -199,9 +199,9 @@ async function assignTo(userId) {
         document.getElementById('assignLabel').textContent = label;
         document.getElementById('assignMenu')?.classList.add('d-none');
         loadContactDetails(activeConversationId);
-        showToast(userId ? `Assigned to ${label}` : 'Conversation unassigned', 'success');
+        showToast(userId ? t('Toast.AssignedTo', label) : t('Toast.Unassigned'), 'success');
     } catch (e) {
-        showToast('Network error: ' + e.message, 'error');
+        showToast(t('Toast.NetworkError', e.message), 'error');
     }
 }
 
@@ -221,9 +221,9 @@ async function setStatus(status) {
         }
         applyStatusToHeader(status);
         document.getElementById('statusMenu')?.classList.add('d-none');
-        showToast(status === 0 ? 'Conversation reopened' : 'Conversation closed', 'success');
+        showToast(status === 0 ? t('Toast.ConversationReopened') : t('Toast.ConversationClosed'), 'success');
     } catch (e) {
-        showToast('Network error: ' + e.message, 'error');
+        showToast(t('Toast.NetworkError', e.message), 'error');
     }
 }
 
@@ -344,10 +344,10 @@ async function sendMessage(event) {
         input.value = '';
         if (composeMode === 'note') {
             loadContactDetails(activeConversationId);
-            showToast('Note added', 'success');
+            showToast(t('Toast.NoteAdded'), 'success');
         }
     } catch (err) {
-        showToast('Network error: ' + err.message, 'error');
+        showToast(t('Toast.NetworkError', err.message), 'error');
     } finally {
         btn.disabled = false;
         input.disabled = false;
@@ -520,7 +520,7 @@ function openMessageActionMenuAt(msg, clientX, clientY) {
         const editItem = document.createElement('button');
         editItem.type = 'button';
         editItem.className = 'msg-action-item';
-        editItem.innerHTML = renderIcon('edit', 14) + '<span>Edit</span>';
+        editItem.innerHTML = renderIcon('edit', 14) + '<span>' + escapeHtml(t('Action.Edit')) + '</span>';
         editItem.addEventListener('click', () => { closeMessageActionMenus(); promptEdit(msg); });
         menu.appendChild(editItem);
     }
@@ -528,7 +528,7 @@ function openMessageActionMenuAt(msg, clientX, clientY) {
     const deleteItem = document.createElement('button');
     deleteItem.type = 'button';
     deleteItem.className = 'msg-action-item msg-action-danger';
-    deleteItem.innerHTML = renderIcon('trash', 14) + '<span>Delete for everyone</span>';
+    deleteItem.innerHTML = renderIcon('trash', 14) + '<span>' + escapeHtml(t('Action.Delete')) + '</span>';
     deleteItem.addEventListener('click', () => { closeMessageActionMenus(); confirmDelete(msg); });
     menu.appendChild(deleteItem);
 
@@ -603,20 +603,21 @@ async function promptEdit(msg) {
         });
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
-            showToast(err.error || 'Failed to edit message.', 'error');
+            showToast(err.error || t('Toast.EditFailed'), 'error');
             return;
         }
         // SignalR will broadcast MessageEdited to all tabs (including this one) — UI updates from there.
     } catch (e) {
-        showToast('Network error: ' + e.message, 'error');
+        showToast(t('Toast.NetworkError', e.message), 'error');
     }
 }
 
 async function confirmDelete(msg) {
     const ok = await openConfirmModal({
-        title: 'Delete for everyone?',
-        body: 'This message will be removed for both you and the contact. This cannot be undone.',
-        confirmLabel: 'Delete',
+        title: t('Modal.Delete.Title'),
+        body: t('Modal.Delete.Body'),
+        confirmLabel: t('Action.Delete'),
+        cancelLabel: t('Action.Cancel'),
         danger: true
     });
     if (!ok) return;
@@ -630,11 +631,11 @@ async function confirmDelete(msg) {
         });
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
-            showToast(err.error || 'Failed to delete message.', 'error');
+            showToast(err.error || t('Toast.DeleteFailed'), 'error');
             return;
         }
     } catch (e) {
-        showToast('Network error: ' + e.message, 'error');
+        showToast(t('Toast.NetworkError', e.message), 'error');
     }
 }
 
@@ -656,16 +657,16 @@ function openEditModal(initialText) {
         dlg.className = 'app-modal';
         dlg.innerHTML = `
             <div class="app-modal-head">
-                <h3>Edit message</h3>
-                <button type="button" class="app-modal-close" aria-label="Close">×</button>
+                <h3>${escapeHtml(t('Modal.Edit.Title'))}</h3>
+                <button type="button" class="app-modal-close" aria-label="${escapeHtml(t('Action.Close'))}">×</button>
             </div>
             <div class="app-modal-body">
                 <textarea class="app-modal-textarea" rows="4"></textarea>
-                <p class="app-modal-hint">WhatsApp only allows edits within ~15 minutes of sending.</p>
+                <p class="app-modal-hint">${escapeHtml(t('Modal.Edit.Hint'))}</p>
             </div>
             <div class="app-modal-foot">
-                <button type="button" class="app-modal-btn app-modal-btn-ghost" data-action="cancel">Cancel</button>
-                <button type="button" class="app-modal-btn app-modal-btn-primary" data-action="save">Save</button>
+                <button type="button" class="app-modal-btn app-modal-btn-ghost" data-action="cancel">${escapeHtml(t('Action.Cancel'))}</button>
+                <button type="button" class="app-modal-btn app-modal-btn-primary" data-action="save">${escapeHtml(t('Action.Save'))}</button>
             </div>
         `;
         const overlay = openModalShell(dlg);
@@ -735,16 +736,16 @@ function openCaptionModal(file) {
         dlg.className = 'app-modal';
         dlg.innerHTML = `
             <div class="app-modal-head">
-                <h3>Send file</h3>
-                <button type="button" class="app-modal-close" aria-label="Close">×</button>
+                <h3>${escapeHtml(t('Modal.Caption.Title'))}</h3>
+                <button type="button" class="app-modal-close" aria-label="${escapeHtml(t('Action.Close'))}">×</button>
             </div>
             <div class="app-modal-body">
                 <div class="app-modal-preview"></div>
-                <input type="text" class="app-modal-input" placeholder="Add a caption (optional)…" maxlength="1024" />
+                <input type="text" class="app-modal-input" placeholder="${escapeHtml(t('Modal.Caption.Placeholder'))}" maxlength="1024" />
             </div>
             <div class="app-modal-foot">
-                <button type="button" class="app-modal-btn app-modal-btn-ghost" data-action="cancel">Cancel</button>
-                <button type="button" class="app-modal-btn app-modal-btn-primary" data-action="send">Send</button>
+                <button type="button" class="app-modal-btn app-modal-btn-ghost" data-action="cancel">${escapeHtml(t('Action.Cancel'))}</button>
+                <button type="button" class="app-modal-btn app-modal-btn-primary" data-action="send">${escapeHtml(t('Action.Send'))}</button>
             </div>
         `;
         const preview = dlg.querySelector('.app-modal-preview');
@@ -1023,11 +1024,23 @@ function showToast(message, type = 'info') {
 }
 
 /* ─── Lifecycle stage ─────────────────────────────────────────────── */
-const LIFECYCLE_LABELS = [
-    'New Client', 'Not Responding', 'Interested', 'Thinking',
-    'Wants a Meeting', 'Waiting for Meeting', 'Discussed',
-    'Potential Client', 'Will Make Payment', 'Waiting for Contract', 'Our Client'
+/* Labels are pulled lazily from the i18n dictionary so a language switch
+   doesn't require a redeploy of the JS. Keys mirror Lifecycle.* in the
+   JSON resource files. */
+const LIFECYCLE_KEYS = [
+    'Lifecycle.NewClient', 'Lifecycle.NotResponding', 'Lifecycle.Interested', 'Lifecycle.Thinking',
+    'Lifecycle.WantsAMeeting', 'Lifecycle.WaitingForMeeting', 'Lifecycle.Discussed',
+    'Lifecycle.PotentialClient', 'Lifecycle.WillMakePayment', 'Lifecycle.WaitingForContract', 'Lifecycle.OurClient'
 ];
+const LIFECYCLE_LABELS = new Proxy(LIFECYCLE_KEYS, {
+    get(target, prop) {
+        if (typeof prop === 'string' && /^\d+$/.test(prop)) {
+            const key = target[Number(prop)];
+            return key ? (window.t ? window.t(key) : key.replace(/^Lifecycle\./, '')) : undefined;
+        }
+        return Reflect.get(target, prop);
+    }
+});
 
 const LIFECYCLE_COLORS = [
     '#94a3b8', '#ef4444', '#3b82f6', '#8b5cf6',
@@ -1081,9 +1094,9 @@ async function setLifecycle(stage) {
 
         applyLifecycleToHeader(stage);
         document.getElementById('lifecycleMenu')?.classList.add('d-none');
-        showToast(`Lifecycle: ${LIFECYCLE_LABELS[stage]}`, 'success');
+        showToast(t('Toast.LifecycleUpdated', LIFECYCLE_LABELS[stage]), 'success');
     } catch (e) {
-        showToast('Network error: ' + e.message, 'error');
+        showToast(t('Toast.NetworkError', e.message), 'error');
     }
 }
 
@@ -1102,7 +1115,7 @@ async function uploadMediaFile(file, caption) {
     if (!file || !activeConversationId) return;
 
     if (file.size > 30 * 1024 * 1024) {
-        showToast('File too large (max 30 MB).', 'error');
+        showToast(t('Toast.FileTooLarge'), 'error');
         return;
     }
 
@@ -1112,7 +1125,7 @@ async function uploadMediaFile(file, caption) {
     fd.append('file', file);
     if (caption && caption.trim()) fd.append('caption', caption.trim());
 
-    showToast('Uploading…', 'info');
+    showToast(t('Toast.Uploading'), 'info');
     try {
         const resp = await fetch('/dashboard/chats/send-media', {
             method: 'POST',
@@ -1121,12 +1134,12 @@ async function uploadMediaFile(file, caption) {
         });
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
-            showToast(err.error || 'Upload failed.', 'error');
+            showToast(err.error || t('Toast.UploadFailed'), 'error');
             return;
         }
         // SignalR delivers the new bubble back to this tab.
     } catch (e) {
-        showToast('Network error: ' + e.message, 'error');
+        showToast(t('Toast.NetworkError', e.message), 'error');
     }
 }
 
@@ -1190,7 +1203,7 @@ function toggleVoice() {
 
 async function startVoice() {
     if (voiceRecorder || !activeConversationId) {
-        if (!activeConversationId) showToast('Select a conversation first.', 'error');
+        if (!activeConversationId) showToast(t('Toast.SelectConversation'), 'error');
         return;
     }
     voiceCancelled = false;
@@ -1225,7 +1238,7 @@ async function startVoice() {
             document.getElementById('voiceRecTime').textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
         }, 250);
     } catch (e) {
-        showToast('Microphone access denied.', 'error');
+        showToast(t('Toast.MicDenied'), 'error');
         voiceRecorder = null;
     }
 }
@@ -1252,7 +1265,7 @@ async function uploadVoice(blob) {
     fd.append('conversationId', String(activeConversationId));
     fd.append('audio', blob, 'voice.webm');
 
-    showToast('Sending voice note…', 'info');
+    showToast(t('Toast.SendingVoice'), 'info');
     try {
         const resp = await fetch('/dashboard/chats/send-voice', {
             method: 'POST',
@@ -1261,10 +1274,10 @@ async function uploadVoice(blob) {
         });
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
-            showToast(err.error || 'Voice note failed.', 'error');
+            showToast(err.error || t('Toast.VoiceFailed'), 'error');
         }
     } catch (e) {
-        showToast('Network error: ' + e.message, 'error');
+        showToast(t('Toast.NetworkError', e.message), 'error');
     }
 }
 

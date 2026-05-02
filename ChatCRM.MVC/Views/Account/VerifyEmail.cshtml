@@ -1,16 +1,17 @@
 @model ResendConfirmationEmailDto
+@inject Microsoft.Extensions.Localization.IStringLocalizer T
 
 @{
-    ViewData["Title"] = "Verify your email";
+    ViewData["Title"] = T["Auth.Verify.Title"].Value;
 }
 
 <section class="auth-page">
     <div class="auth-card">
         <div class="auth-copy">
-            <span class="eyebrow">One more step</span>
-            <h1>Verify your email address</h1>
-            <p>We sent a confirmation link to <strong>@Model.Email</strong>. Open the link to activate your account before signing in.</p>
-            <p class="form-hint mb-0">Development emails are written to <code>App_Data/emails</code>.</p>
+            <span class="eyebrow">@T["Auth.Verify.Eyebrow"]</span>
+            <h1>@T["Auth.Verify.Heading"]</h1>
+            <p>@T["Auth.Verify.SubBefore"] <strong>@Model.Email</strong>@T["Auth.Verify.SubAfter"]</p>
+            <p class="form-hint mb-0">@Html.Raw(T["Auth.Verify.DevHint"].Value)</p>
         </div>
 
         <form asp-action="ResendConfirmationEmail" method="post" novalidate>
@@ -24,10 +25,10 @@
                 <span asp-validation-for="Email" class="text-danger"></span>
             </div>
 
-            <button type="submit" class="btn btn-outline-primary w-100 btn-lg">Resend verification email</button>
+            <button type="submit" class="btn btn-outline-primary w-100 btn-lg">@T["Auth.Verify.Submit"]</button>
         </form>
 
-        <p class="auth-footer">Already verified? <a asp-action="Login" class="auth-link">Sign in</a>.</p>
+        <p class="auth-footer">@T["Auth.Verify.Footer"] <a asp-action="Login" class="auth-link">@T["Auth.Verify.SignIn"]</a>.</p>
     </div>
 </section>
 
