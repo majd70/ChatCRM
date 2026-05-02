@@ -348,6 +348,9 @@ async function sendMessage(event) {
 }
 
 /* ─── DOM helpers ───────────────────────────────────────────────────── */
+/* Message kinds — must mirror ChatCRM.Domain.Entities.MessageKind */
+const MSG_KIND = { TEXT: 0, IMAGE: 1, VIDEO: 2, AUDIO: 3, DOCUMENT: 4, STICKER: 5 };
+
 function buildBubble(msg) {
     const direction = msg.direction;
     const isOutgoing = direction === 1;
@@ -366,7 +369,75 @@ function buildBubble(msg) {
 
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
-    bubble.textContent = msg.body;
+
+    const kind = msg.kind ?? MSG_KIND.TEXT;
+    const mediaUrl = msg.mediaUrl;
+
+    if (kind === MSG_KIND.TEXT || !mediaUrl) {
+        // Plain text — or media that hasn't been fetched yet (placeholder).
+        if (mediaUrl == null && kind !== MSG_KIND.TEXT) {
+            bubble.classList.add('msg-bubble-pending');
+            bubble.textContent = mediaPendingLabel(kind, msg.mediaFileName);
+        } else {
+            bubble.textContent = msg.body || '';
+        }
+    } else if (kind === MSG_KIND.IMAGE || kind === MSG_KIND.STICKER) {
+        bubble.classList.add('msg-bubble-media');
+        const img = document.createElement('img');
+        img.className = 'msg-image';
+        img.loading = 'lazy';
+        img.src = mediaUrl;
+        img.alt = msg.body || 'image';
+        img.addEventListener('click', () => openLightbox(mediaUrl));
+        bubble.appendChild(img);
+        if (msg.body) {
+            const cap = document.createElement('div');
+            cap.className = 'msg-caption';
+            cap.textContent = msg.body;
+            bubble.appendChild(cap);
+        }
+    } else if (kind === MSG_KIND.VIDEO) {
+        bubble.classList.add('msg-bubble-media');
+        const v = document.createElement('video');
+        v.className = 'msg-video';
+        v.controls = true;
+        v.preload = 'metadata';
+        v.src = mediaUrl;
+        bubble.appendChild(v);
+        if (msg.body) {
+            const cap = document.createElement('div');
+            cap.className = 'msg-caption';
+            cap.textContent = msg.body;
+            bubble.appendChild(cap);
+        }
+    } else if (kind === MSG_KIND.AUDIO) {
+        const a = document.createElement('audio');
+        a.className = 'msg-audio';
+        a.controls = true;
+        a.preload = 'metadata';
+        a.src = mediaUrl;
+        bubble.appendChild(a);
+    } else if (kind === MSG_KIND.DOCUMENT) {
+        bubble.classList.add('msg-bubble-doc');
+        const link = document.createElement('a');
+        link.className = 'msg-doc';
+        link.href = mediaUrl;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.download = msg.mediaFileName || '';
+        link.innerHTML = `<span class="msg-doc-icon">📄</span>`
+            + `<span class="msg-doc-meta">`
+            + `<span class="msg-doc-name">${escapeHtml(msg.mediaFileName || 'Document')}</span>`
+            + `<span class="msg-doc-hint">Click to download</span>`
+            + `</span>`;
+        bubble.appendChild(link);
+        if (msg.body) {
+            const cap = document.createElement('div');
+            cap.className = 'msg-caption';
+            cap.textContent = msg.body;
+            bubble.appendChild(cap);
+        }
+    }
 
     const meta = document.createElement('div');
     meta.className = 'msg-meta';
@@ -382,6 +453,39 @@ function buildBubble(msg) {
     wrapper.appendChild(bubble);
     wrapper.appendChild(meta);
     return wrapper;
+}
+
+function mediaPendingLabel(kind, fileName) {
+    switch (kind) {
+        case MSG_KIND.IMAGE:    return '📷 Photo (loading…)';
+        case MSG_KIND.VIDEO:    return '🎥 Video (loading…)';
+        case MSG_KIND.AUDIO:    return '🎤 Audio (loading…)';
+        case MSG_KIND.STICKER:  return '📌 Sticker';
+        case MSG_KIND.DOCUMENT: return '📎 ' + (fileName || 'Document');
+        default:                return '';
+    }
+}
+
+/* Sidebar preview — what to show under the contact name when the last message
+   is a media item with no caption. */
+function previewForMessage(msg) {
+    if (msg.body) return msg.body;
+    switch (msg.kind ?? MSG_KIND.TEXT) {
+        case MSG_KIND.IMAGE:    return '📷 Photo';
+        case MSG_KIND.VIDEO:    return '🎥 Video';
+        case MSG_KIND.AUDIO:    return '🎤 Audio';
+        case MSG_KIND.STICKER:  return '📌 Sticker';
+        case MSG_KIND.DOCUMENT: return '📎 ' + (msg.mediaFileName || 'Document');
+        default:                return '';
+    }
+}
+
+function openLightbox(src) {
+    const overlay = document.createElement('div');
+    overlay.className = 'msg-lightbox';
+    overlay.innerHTML = `<img src="${escapeHtml(src)}" alt="">`;
+    overlay.addEventListener('click', () => overlay.remove());
+    document.body.appendChild(overlay);
 }
 
 function escapeHtml(s) {
@@ -442,7 +546,7 @@ function updateSidebarRow(conversationId, message, unreadCount) {
 
     const preview = item.querySelector('.conv-preview');
     if (preview) {
-        const text = message.body ?? '';
+        const text = previewForMessage(message);
         preview.textContent = text.length > 55 ? text.slice(0, 55) + '…' : text;
     }
 

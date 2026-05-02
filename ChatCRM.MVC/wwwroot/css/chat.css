@@ -387,6 +387,101 @@ body.chat-shell {
     padding: 40px;
 }
 
+/* ─── Media bubbles (images, video, audio, documents, stickers) ─── */
+.msg-bubble-media,
+.msg-bubble-doc {
+    padding: 4px;
+}
+
+.msg-bubble-media .msg-image,
+.msg-bubble-media .msg-video {
+    display: block;
+    max-width: 320px;
+    max-height: 320px;
+    width: 100%;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.msg-bubble-media .msg-video { cursor: default; }
+
+.msg-caption {
+    padding: 6px 8px 4px;
+    font-size: 14px;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.msg-audio {
+    display: block;
+    width: 280px;
+    height: 36px;
+}
+
+.msg-doc {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    text-decoration: none;
+    color: inherit;
+    background: rgba(0,0,0,0.04);
+    border-radius: 6px;
+    min-width: 220px;
+}
+
+.msg-doc:hover { background: rgba(0,0,0,0.08); }
+
+.msg-doc-icon {
+    font-size: 28px;
+    line-height: 1;
+}
+
+.msg-doc-meta {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.msg-doc-name {
+    font-weight: 500;
+    font-size: 13px;
+    color: #111;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.msg-doc-hint {
+    font-size: 11px;
+    color: #888;
+}
+
+.msg-bubble-pending {
+    font-style: italic;
+    color: #777;
+}
+
+/* Image lightbox — click an image bubble to view it full-size */
+.msg-lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    cursor: zoom-out;
+    animation: fadeUp 0.15s ease;
+}
+
+.msg-lightbox img {
+    max-width: 92vw;
+    max-height: 92vh;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
 .spinner {
     width: 28px;
     height: 28px;

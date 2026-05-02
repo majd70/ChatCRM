@@ -4,6 +4,7 @@ using ChatCRM.Application.Chats.DTOs;
 using ChatCRM.Application.Interfaces;
 using ChatCRM.Domain.Entities;
 using ChatCRM.Persistence;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -15,17 +16,20 @@ namespace ChatCRM.Infrastructure.Services
         private readonly AppDbContext _db;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IHubContext<ChatHub> _hub;
+        private readonly IWebHostEnvironment _env;
         private readonly ILogger<EvolutionService> _logger;
 
         public EvolutionService(
             AppDbContext db,
             IHttpClientFactory httpClientFactory,
             IHubContext<ChatHub> hub,
+            IWebHostEnvironment env,
             ILogger<EvolutionService> logger)
         {
             _db = db;
             _httpClientFactory = httpClientFactory;
             _hub = hub;
+            _env = env;
             _logger = logger;
         }
 
@@ -97,11 +101,11 @@ namespace ChatCRM.Infrastructure.Services
             var rawJid = payload.Data.Key.RemoteJid;
             var phone = rawJid.Split('@')[0];
 
-            var body = payload.Data.Message.Conversation
-                ?? payload.Data.Message.ExtendedTextMessage?.Text
-                ?? string.Empty;
+            var (kind, body, mime, fileName) = ResolveMessagePayload(payload.Data);
 
-            if (string.IsNullOrWhiteSpace(body))
+            // If we couldn't classify it as anything we render, skip silently.
+            // (Reactions, typing, presence, protocol messages, etc. fall through here.)
+            if (kind == MessageKind.Text && string.IsNullOrWhiteSpace(body))
                 return;
 
             var sentAt = payload.Data.MessageTimestamp > 0
@@ -158,11 +162,14 @@ namespace ChatCRM.Infrastructure.Services
             var message = new Message
             {
                 ConversationId = conversation.Id,
-                Body = body,
+                Body = body ?? string.Empty,
                 Direction = MessageDirection.Incoming,
                 Status = MessageStatus.Sent,
                 ExternalId = externalId,
-                SentAt = sentAt
+                SentAt = sentAt,
+                Kind = kind,
+                MediaMimeType = mime,
+                MediaFileName = fileName
             };
 
             _db.Messages.Add(message);
@@ -170,6 +177,17 @@ namespace ChatCRM.Infrastructure.Services
             conversation.UnreadCount += 1;
 
             await _db.SaveChangesAsync(cancellationToken);
+
+            // Fetch + persist the actual media file so it's renderable in the UI.
+            if (kind != MessageKind.Text)
+            {
+                var mediaUrl = await DownloadAndStoreMediaAsync(payload.Instance!, externalId, message.Id, mime, cancellationToken);
+                if (mediaUrl is not null)
+                {
+                    message.MediaUrl = mediaUrl;
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
+            }
 
             var instanceUnread = await _db.Conversations
                 .Where(c => c.WhatsAppInstanceId == instance.Id && !c.IsArchived)
@@ -194,10 +212,147 @@ namespace ChatCRM.Infrastructure.Services
                         id = message.Id,
                         body = message.Body,
                         direction = (int)message.Direction,
-                        sentAt = message.SentAt
+                        sentAt = message.SentAt,
+                        kind = (int)message.Kind,
+                        mediaUrl = message.MediaUrl,
+                        mediaMimeType = message.MediaMimeType,
+                        mediaFileName = message.MediaFileName
                     },
                     unreadCount = conversation.UnreadCount
                 }, cancellationToken);
+        }
+
+        /// <summary>
+        /// Inspects the Baileys message envelope and extracts (kind, text, mime, filename).
+        /// Text falls back to caption for images/videos/documents so the conversation list
+        /// still has something readable as a preview.
+        /// </summary>
+        private static (MessageKind kind, string? body, string? mime, string? fileName) ResolveMessagePayload(WebhookMessageData data)
+        {
+            var msg = data.Message!;
+
+            if (!string.IsNullOrEmpty(msg.Conversation))
+                return (MessageKind.Text, msg.Conversation, null, null);
+
+            if (msg.ExtendedTextMessage?.Text is { Length: > 0 } extText)
+                return (MessageKind.Text, extText, null, null);
+
+            if (msg.ImageMessage is not null)
+                return (MessageKind.Image, msg.ImageMessage.Caption, msg.ImageMessage.Mimetype, null);
+
+            if (msg.VideoMessage is not null)
+                return (MessageKind.Video, msg.VideoMessage.Caption, msg.VideoMessage.Mimetype, null);
+
+            if (msg.AudioMessage is not null)
+                return (MessageKind.Audio, null, msg.AudioMessage.Mimetype, null);
+
+            if (msg.StickerMessage is not null)
+                return (MessageKind.Sticker, null, msg.StickerMessage.Mimetype, null);
+
+            if (msg.DocumentMessage is not null)
+                return (MessageKind.Document, msg.DocumentMessage.Caption, msg.DocumentMessage.Mimetype, msg.DocumentMessage.FileName);
+
+            // WhatsApp wraps captioned documents in this nested envelope.
+            var docInner = msg.DocumentWithCaptionMessage?.Message?.DocumentMessage;
+            if (docInner is not null)
+                return (MessageKind.Document, docInner.Caption, docInner.Mimetype, docInner.FileName);
+
+            return (MessageKind.Text, null, null, null);
+        }
+
+        /// <summary>
+        /// Calls Evolution's /chat/getBase64FromMediaMessage/{instance} endpoint to decrypt
+        /// the WhatsApp media, then writes it under wwwroot/media/{messageId}.{ext} and
+        /// returns the public URL. Returns null on failure (the message row already exists,
+        /// so the chat will show a placeholder bubble).
+        /// </summary>
+        private async Task<string?> DownloadAndStoreMediaAsync(
+            string instanceName,
+            string externalMessageId,
+            int messageId,
+            string? mimeType,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                var client = _httpClientFactory.CreateClient("Evolution");
+                var requestPayload = new
+                {
+                    message = new { key = new { id = externalMessageId } },
+                    convertToMp4 = false
+                };
+                var content = new StringContent(JsonSerializer.Serialize(requestPayload), Encoding.UTF8, "application/json");
+
+                var response = await client.PostAsync($"/chat/getBase64FromMediaMessage/{instanceName}", content, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var err = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogError("Evolution media fetch failed {Status} for msg {Id}: {Err}",
+                        response.StatusCode, externalMessageId, err);
+                    return null;
+                }
+
+                using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+
+                if (!doc.RootElement.TryGetProperty("base64", out var b64Element))
+                {
+                    _logger.LogError("Evolution media response missing 'base64' for msg {Id}", externalMessageId);
+                    return null;
+                }
+
+                var b64 = b64Element.GetString();
+                if (string.IsNullOrEmpty(b64))
+                    return null;
+
+                var bytes = Convert.FromBase64String(b64);
+
+                var ext = ExtensionForMime(mimeType);
+                var rootForMedia = string.IsNullOrWhiteSpace(_env.WebRootPath)
+                    ? Path.Combine(_env.ContentRootPath, "wwwroot")
+                    : _env.WebRootPath;
+                var mediaDir = Path.Combine(rootForMedia, "media");
+                Directory.CreateDirectory(mediaDir);
+
+                var fileName = $"{messageId}{ext}";
+                var fullPath = Path.Combine(mediaDir, fileName);
+                await File.WriteAllBytesAsync(fullPath, bytes, cancellationToken);
+
+                return $"/media/{fileName}";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to download media for message {Id}", externalMessageId);
+                return null;
+            }
+        }
+
+        private static string ExtensionForMime(string? mime)
+        {
+            if (string.IsNullOrEmpty(mime)) return ".bin";
+            var bare = mime.Split(';')[0].Trim().ToLowerInvariant();
+            return bare switch
+            {
+                "image/jpeg" or "image/jpg" => ".jpg",
+                "image/png" => ".png",
+                "image/gif" => ".gif",
+                "image/webp" => ".webp",
+                "video/mp4" => ".mp4",
+                "video/3gpp" => ".3gp",
+                "video/webm" => ".webm",
+                "audio/ogg" or "audio/ogg; codecs=opus" => ".ogg",
+                "audio/mpeg" => ".mp3",
+                "audio/mp4" => ".m4a",
+                "audio/wav" => ".wav",
+                "application/pdf" => ".pdf",
+                "application/zip" => ".zip",
+                "application/msword" => ".doc",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => ".docx",
+                "application/vnd.ms-excel" => ".xls",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => ".xlsx",
+                "text/plain" => ".txt",
+                _ => ".bin"
+            };
         }
     }
 }

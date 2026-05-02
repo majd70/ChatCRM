@@ -73,7 +73,14 @@ namespace ChatCRM.Infrastructure.Services
                     AvatarUrl = c.Contact.AvatarUrl,
                     LastMessage = c.Messages
                         .OrderByDescending(m => m.SentAt)
-                        .Select(m => m.Body)
+                        .Select(m =>
+                            m.Kind == MessageKind.Text || !string.IsNullOrEmpty(m.Body) ? m.Body :
+                            m.Kind == MessageKind.Image    ? "\U0001F4F7 Photo" :
+                            m.Kind == MessageKind.Video    ? "\U0001F3A5 Video" :
+                            m.Kind == MessageKind.Audio    ? "\U0001F3A4 Audio" :
+                            m.Kind == MessageKind.Sticker  ? "\U0001F4CC Sticker" :
+                            m.Kind == MessageKind.Document ? "\U0001F4CE " + (m.MediaFileName ?? "Document") :
+                            string.Empty)
                         .FirstOrDefault() ?? string.Empty,
                     LastMessageAt = c.LastMessageAt,
                     UnreadCount = c.UnreadCount,
@@ -100,6 +107,10 @@ namespace ChatCRM.Infrastructure.Services
                     Direction = m.Direction,
                     Status = m.Status,
                     SentAt = m.SentAt,
+                    Kind = m.Kind,
+                    MediaUrl = m.MediaUrl,
+                    MediaMimeType = m.MediaMimeType,
+                    MediaFileName = m.MediaFileName,
                     AuthorName = m.AuthorUser != null
                         ? (string.IsNullOrWhiteSpace(m.AuthorUser.FirstName) ? m.AuthorUser.Email : m.AuthorUser.FirstName + " " + m.AuthorUser.LastName)
                         : null

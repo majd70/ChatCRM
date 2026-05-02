@@ -22,6 +22,9 @@ namespace ChatCRM.Application.Chats.DTOs
         [JsonPropertyName("message")]
         public WebhookMessageContent? Message { get; set; }
 
+        [JsonPropertyName("messageType")]
+        public string? MessageType { get; set; }
+
         [JsonPropertyName("messageTimestamp")]
         public long MessageTimestamp { get; set; }
 
@@ -48,11 +51,53 @@ namespace ChatCRM.Application.Chats.DTOs
 
         [JsonPropertyName("extendedTextMessage")]
         public ExtendedTextMessage? ExtendedTextMessage { get; set; }
+
+        [JsonPropertyName("imageMessage")]
+        public WebhookMediaMessage? ImageMessage { get; set; }
+
+        [JsonPropertyName("videoMessage")]
+        public WebhookMediaMessage? VideoMessage { get; set; }
+
+        [JsonPropertyName("audioMessage")]
+        public WebhookMediaMessage? AudioMessage { get; set; }
+
+        [JsonPropertyName("documentMessage")]
+        public WebhookMediaMessage? DocumentMessage { get; set; }
+
+        [JsonPropertyName("documentWithCaptionMessage")]
+        public WebhookDocumentWithCaption? DocumentWithCaptionMessage { get; set; }
+
+        [JsonPropertyName("stickerMessage")]
+        public WebhookMediaMessage? StickerMessage { get; set; }
     }
 
     public class ExtendedTextMessage
     {
         [JsonPropertyName("text")]
         public string? Text { get; set; }
+    }
+
+    public class WebhookMediaMessage
+    {
+        [JsonPropertyName("mimetype")]
+        public string? Mimetype { get; set; }
+
+        [JsonPropertyName("caption")]
+        public string? Caption { get; set; }
+
+        [JsonPropertyName("fileName")]
+        public string? FileName { get; set; }
+    }
+
+    public class WebhookDocumentWithCaption
+    {
+        [JsonPropertyName("message")]
+        public WebhookDocumentInner? Message { get; set; }
+    }
+
+    public class WebhookDocumentInner
+    {
+        [JsonPropertyName("documentMessage")]
+        public WebhookMediaMessage? DocumentMessage { get; set; }
     }
 }
