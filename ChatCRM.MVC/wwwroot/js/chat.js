@@ -1164,7 +1164,9 @@ function setupPasteHandler() {
 
 document.addEventListener('DOMContentLoaded', setupPasteHandler);
 
-/* ─── Voice notes (hold-to-record) ─────────────────────────────────── */
+/* ─── Voice notes (click-to-toggle) ─────────────────────────────────
+   Single click on the mic starts recording; second click stops and sends.
+   Esc or the cancel button in the recording bar discards. */
 let voiceRecorder = null;
 let voiceChunks = [];
 let voiceStartTs = 0;
@@ -1174,18 +1176,23 @@ let voiceCancelled = false;
 function setupVoiceButton() {
     const btn = document.getElementById('voiceBtn');
     if (!btn) return;
-    btn.addEventListener('mousedown', startVoice);
-    btn.addEventListener('touchstart', (e) => { e.preventDefault(); startVoice(); });
-    btn.addEventListener('mouseup', stopVoice);
-    btn.addEventListener('mouseleave', () => { if (voiceRecorder) cancelVoice(); });
-    btn.addEventListener('touchend', stopVoice);
+    btn.addEventListener('click', toggleVoice);
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && voiceRecorder) cancelVoice();
     });
+    document.getElementById('voiceCancelBtn')?.addEventListener('click', cancelVoice);
+}
+
+function toggleVoice() {
+    if (voiceRecorder) stopVoice();
+    else startVoice();
 }
 
 async function startVoice() {
-    if (voiceRecorder || !activeConversationId) return;
+    if (voiceRecorder || !activeConversationId) {
+        if (!activeConversationId) showToast('Select a conversation first.', 'error');
+        return;
+    }
     voiceCancelled = false;
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1198,18 +1205,20 @@ async function startVoice() {
         voiceRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) voiceChunks.push(e.data); };
         voiceRecorder.onstop = async () => {
             stream.getTracks().forEach(t => t.stop());
-            const bar = document.getElementById('voiceRecordingBar');
-            bar?.classList.add('d-none');
+            document.getElementById('voiceRecordingBar')?.classList.add('d-none');
+            document.getElementById('voiceBtn')?.classList.remove('is-recording');
             clearInterval(voiceTimer);
-            if (voiceCancelled || voiceChunks.length === 0) { voiceRecorder = null; return; }
-
-            const blob = new Blob(voiceChunks, { type: voiceRecorder.mimeType || 'audio/webm' });
+            const wasCancelled = voiceCancelled;
+            const chunks = voiceChunks;
+            const recMime = voiceRecorder.mimeType || 'audio/webm';
             voiceRecorder = null;
-            await uploadVoice(blob);
+            if (wasCancelled || chunks.length === 0) return;
+            await uploadVoice(new Blob(chunks, { type: recMime }));
         };
         voiceRecorder.start();
         voiceStartTs = Date.now();
         document.getElementById('voiceRecordingBar')?.classList.remove('d-none');
+        document.getElementById('voiceBtn')?.classList.add('is-recording');
         document.getElementById('voiceRecTime').textContent = '0:00';
         voiceTimer = setInterval(() => {
             const s = Math.floor((Date.now() - voiceStartTs) / 1000);
@@ -1223,8 +1232,8 @@ async function startVoice() {
 
 function stopVoice() {
     if (!voiceRecorder) return;
+    // Refuse to send a sub-half-second blip — likely an accidental double-click.
     if (Date.now() - voiceStartTs < 500) {
-        // Tap rather than hold — cancel.
         cancelVoice();
         return;
     }

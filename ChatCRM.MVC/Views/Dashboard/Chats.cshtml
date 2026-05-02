@@ -309,8 +309,8 @@
                 </button>
                 <input type="file" id="attachInput" hidden accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt" onchange="sendAttachment(event)" />
 
-                @* Voice note recorder — hold to record *@
-                <button type="button" class="compose-action-btn" id="voiceBtn" title="Hold to record a voice note">
+                @* Voice note recorder — click to start, click again to send *@
+                <button type="button" class="compose-action-btn" id="voiceBtn" title="Record a voice note (click to start, click again to send)">
                     @await Html.PartialAsync("_Icon", new IconModel("mic", size: 20))
                 </button>
 
@@ -324,7 +324,10 @@
             <div class="voice-recording-bar d-none" id="voiceRecordingBar">
                 <span class="voice-rec-dot"></span>
                 <span class="voice-rec-time" id="voiceRecTime">0:00</span>
-                <span class="voice-rec-hint">Release to send · Esc / Drag away to cancel</span>
+                <span class="voice-rec-hint">Click the mic again to send · Esc to cancel</span>
+                <button type="button" class="voice-rec-cancel" id="voiceCancelBtn" title="Discard recording">
+                    @await Html.PartialAsync("_Icon", new IconModel("x", size: 16))
+                </button>
             </div>
         </div>
     </main>

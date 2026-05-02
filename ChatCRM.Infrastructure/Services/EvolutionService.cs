@@ -256,8 +256,11 @@ namespace ChatCRM.Infrastructure.Services
             if (payload.Data.Key is null || payload.Data.Message is null)
                 return;
 
-            if (payload.Data.Key.FromMe)
-                return;
+            // fromMe=true means the message originated on the linked WhatsApp account itself
+            // (the agent typing on Ahmed's phone, or this CRM having just sent it). We still
+            // want to persist it so the dashboard reflects the conversation state — the dedupe
+            // check below handles the case where the CRM already inserted the row.
+            var isOutgoing = payload.Data.Key.FromMe;
 
             // Some Baileys versions deliver edits/revokes inline with upsert as a protocolMessage.
             var protocolEnvelope = payload.Data.Message.ProtocolMessage
@@ -323,10 +326,10 @@ namespace ChatCRM.Infrastructure.Services
                     contact.RemoteJid = rawJid;
             }
 
-            // Hard-block check — if the user has blocked this contact, the message is dropped silently.
-            // The contact row stays in the DB so any past chat history is preserved and the agent can
-            // unblock later from the Contacts page.
-            if (contact.IsBlocked)
+            // Hard-block check — if the user has blocked this contact, INCOMING messages get
+            // dropped silently. Outgoing messages (the agent typing on the linked phone) still
+            // get recorded so the timeline stays accurate.
+            if (contact.IsBlocked && !isOutgoing)
             {
                 _logger.LogInformation("Dropped inbound message from blocked contact {Phone} (id {ContactId})",
                     phone, contact.Id);
@@ -353,7 +356,7 @@ namespace ChatCRM.Infrastructure.Services
             {
                 ConversationId = conversation.Id,
                 Body = body ?? string.Empty,
-                Direction = MessageDirection.Incoming,
+                Direction = isOutgoing ? MessageDirection.Outgoing : MessageDirection.Incoming,
                 Status = MessageStatus.Sent,
                 ExternalId = externalId,
                 SentAt = sentAt,
@@ -364,7 +367,8 @@ namespace ChatCRM.Infrastructure.Services
 
             _db.Messages.Add(message);
             conversation.LastMessageAt = sentAt;
-            conversation.UnreadCount += 1;
+            // Only inbound messages count toward unread — outbound (fromMe) doesn't.
+            if (!isOutgoing) conversation.UnreadCount += 1;
 
             await _db.SaveChangesAsync(cancellationToken);
 

@@ -695,6 +695,20 @@ body.chat-shell {
 }
 .voice-rec-time { font-variant-numeric: tabular-nums; font-weight: 600; }
 .voice-rec-hint { color: #888; font-size: 12px; margin-left: auto; }
+.voice-rec-cancel {
+    border: none;
+    background: transparent;
+    color: #c0392b;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s ease;
+}
+.voice-rec-cancel:hover { background: rgba(231, 76, 60, 0.12); }
 @keyframes voicePulse {
     0%, 100% { opacity: 1; }
     50%      { opacity: 0.35; }
