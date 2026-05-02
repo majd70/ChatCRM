@@ -158,6 +158,106 @@ namespace ChatCRM.MVC.Controllers
             }
         }
 
+        public class EditMessageRequest
+        {
+            public int MessageId { get; set; }
+            public string Body { get; set; } = string.Empty;
+        }
+
+        [HttpPost("/dashboard/chats/edit")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditMessage([FromBody] EditMessageRequest dto, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Body))
+                return BadRequest(new { error = "Edited message body is required." });
+
+            try
+            {
+                var message = await _chatService.EditMessageAsync(dto.MessageId, dto.Body, cancellationToken);
+                return Json(message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "Edit failed for message {Id}", dto.MessageId);
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+        public class DeleteMessageRequest { public int MessageId { get; set; } }
+
+        [HttpPost("/dashboard/chats/delete")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteMessage([FromBody] DeleteMessageRequest dto, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await _chatService.DeleteMessageAsync(dto.MessageId, cancellationToken);
+                return Ok(new { deleted = true });
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "Delete failed for message {Id}", dto.MessageId);
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+        [HttpPost("/dashboard/chats/send-media")]
+        [ValidateAntiForgeryToken]
+        [RequestSizeLimit(30_000_000)] // 30 MB upload cap
+        public async Task<IActionResult> SendMedia(
+            [FromForm] int conversationId,
+            [FromForm] IFormFile file,
+            [FromForm] string? caption,
+            CancellationToken cancellationToken)
+        {
+            if (file is null || file.Length == 0)
+                return BadRequest(new { error = "File is required." });
+
+            try
+            {
+                using var ms = new MemoryStream();
+                await file.CopyToAsync(ms, cancellationToken);
+                var bytes = ms.ToArray();
+
+                var mime = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType;
+                var message = await _chatService.SendMediaMessageAsync(conversationId, bytes, file.FileName, mime, caption, cancellationToken);
+                return Json(message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "SendMedia failed for conversation {Id}", conversationId);
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+        [HttpPost("/dashboard/chats/send-voice")]
+        [ValidateAntiForgeryToken]
+        [RequestSizeLimit(15_000_000)]
+        public async Task<IActionResult> SendVoice(
+            [FromForm] int conversationId,
+            [FromForm] IFormFile audio,
+            CancellationToken cancellationToken)
+        {
+            if (audio is null || audio.Length == 0)
+                return BadRequest(new { error = "Audio file is required." });
+
+            try
+            {
+                using var ms = new MemoryStream();
+                await audio.CopyToAsync(ms, cancellationToken);
+                var bytes = ms.ToArray();
+
+                var mime = string.IsNullOrWhiteSpace(audio.ContentType) ? "audio/ogg" : audio.ContentType;
+                var message = await _chatService.SendVoiceNoteAsync(conversationId, bytes, mime, cancellationToken);
+                return Json(message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "SendVoice failed for conversation {Id}", conversationId);
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
         [HttpPost("/dashboard/chats/lifecycle")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SetLifecycle([FromBody] SetLifecycleDto dto, CancellationToken cancellationToken)

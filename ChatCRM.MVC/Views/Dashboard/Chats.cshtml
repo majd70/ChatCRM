@@ -302,11 +302,30 @@
 
             <form class="chat-input-bar" id="chatForm" onsubmit="sendMessage(event)">
                 @Html.AntiForgeryToken()
+
+                @* Attach (image / file) *@
+                <button type="button" class="compose-action-btn" id="attachBtn" onclick="document.getElementById('attachInput').click()" title="Attach a file">
+                    @await Html.PartialAsync("_Icon", new IconModel("plus", size: 20))
+                </button>
+                <input type="file" id="attachInput" hidden accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt" onchange="sendAttachment(event)" />
+
+                @* Voice note recorder — hold to record *@
+                <button type="button" class="compose-action-btn" id="voiceBtn" title="Hold to record a voice note">
+                    @await Html.PartialAsync("_Icon", new IconModel("mic", size: 20))
+                </button>
+
                 <input type="text" id="messageInput" class="chat-input" placeholder="Type a message…" autocomplete="off" maxlength="4096" />
                 <button type="submit" class="send-btn" id="sendBtn" aria-label="Send">
                     @await Html.PartialAsync("_Icon", new IconModel("send", size: 18))
                 </button>
             </form>
+
+            @* Voice recording indicator overlay *@
+            <div class="voice-recording-bar d-none" id="voiceRecordingBar">
+                <span class="voice-rec-dot"></span>
+                <span class="voice-rec-time" id="voiceRecTime">0:00</span>
+                <span class="voice-rec-hint">Release to send · Esc / Drag away to cancel</span>
+            </div>
         </div>
     </main>
 

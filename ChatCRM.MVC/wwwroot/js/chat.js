@@ -468,9 +468,324 @@ function buildBubble(msg) {
         meta.appendChild(tick);
     }
 
+    // Edit / delete-for-everyone on outgoing bubbles. WhatsApp-style:
+    //  • Right-click anywhere on the bubble → context menu at cursor (primary)
+    //  • Long-press on touch devices → same menu
+    //  • Hover kebab still present for discoverability + accessibility (keyboard / mouse-only users)
+    if (isOutgoing && !msg.isDeleted) {
+        wrapper.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            // Without stopPropagation, this event also bubbles up to the document-level
+            // close-listener registered by the previous menu, which would kill the menu we
+            // are about to open in the same tick.
+            e.stopPropagation();
+            openMessageActionMenuAt(msg, e.clientX, e.clientY);
+        });
+
+        // Long-press (mobile) — fires after 500ms of touch hold without movement.
+        let lpTimer = null;
+        let lpStart = null;
+        wrapper.addEventListener('touchstart', (e) => {
+            const t = e.touches[0];
+            lpStart = { x: t.clientX, y: t.clientY };
+            lpTimer = setTimeout(() => {
+                if (navigator.vibrate) navigator.vibrate(15);
+                openMessageActionMenuAt(msg, lpStart.x, lpStart.y);
+                lpTimer = null;
+            }, 500);
+        }, { passive: true });
+        const cancelLP = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
+        wrapper.addEventListener('touchend',    cancelLP);
+        wrapper.addEventListener('touchcancel', cancelLP);
+        wrapper.addEventListener('touchmove',   (e) => {
+            if (!lpStart || !lpTimer) return;
+            const t = e.touches[0];
+            if (Math.hypot(t.clientX - lpStart.x, t.clientY - lpStart.y) > 8) cancelLP();
+        }, { passive: true });
+    }
+
     wrapper.appendChild(bubble);
     wrapper.appendChild(meta);
     return wrapper;
+}
+
+function openMessageActionMenuAt(msg, clientX, clientY) {
+    closeMessageActionMenus();
+    const menu = document.createElement('div');
+    menu.className = 'msg-action-menu';
+
+    // Edit only makes sense on text bubbles + bubbles that have a caption (image/video/document with body).
+    const canEdit = (msg.kind === MSG_KIND.TEXT) || (msg.body && msg.body.length > 0);
+    if (canEdit) {
+        const editItem = document.createElement('button');
+        editItem.type = 'button';
+        editItem.className = 'msg-action-item';
+        editItem.innerHTML = renderIcon('edit', 14) + '<span>Edit</span>';
+        editItem.addEventListener('click', () => { closeMessageActionMenus(); promptEdit(msg); });
+        menu.appendChild(editItem);
+    }
+
+    const deleteItem = document.createElement('button');
+    deleteItem.type = 'button';
+    deleteItem.className = 'msg-action-item msg-action-danger';
+    deleteItem.innerHTML = renderIcon('trash', 14) + '<span>Delete for everyone</span>';
+    deleteItem.addEventListener('click', () => { closeMessageActionMenus(); confirmDelete(msg); });
+    menu.appendChild(deleteItem);
+
+    // Render off-screen first so we can measure dimensions, then clamp into the viewport.
+    menu.style.position = 'fixed';
+    menu.style.left = '-9999px';
+    menu.style.top  = '-9999px';
+    document.body.appendChild(menu);
+
+    const pad = 8;
+    const mw = menu.offsetWidth;
+    const mh = menu.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let x = clientX;
+    let y = clientY;
+    if (x + mw + pad > vw) x = vw - mw - pad;     // would overflow right
+    if (y + mh + pad > vh) y = clientY - mh;      // flip above the cursor
+    if (x < pad) x = pad;
+    if (y < pad) y = pad;
+
+    menu.style.left = x + 'px';
+    menu.style.top  = y + 'px';
+
+    // Highlight the target bubble while its menu is open (WhatsApp-Web style).
+    const wrapper = document.querySelector(`.msg[data-msg-id="${msg.id}"]`);
+    wrapper?.classList.add('msg-menu-open');
+
+    // Lifecycle of the dismissal listeners: register on the next tick so the click/contextmenu
+    // that opened this menu doesn't immediately close it, then remove them ALL when the menu
+    // goes away (whether by user pick, click-outside, Esc, or another menu opening on top).
+    const dismiss = () => closeMessageActionMenus();
+    const onKey   = (e) => { if (e.key === 'Escape') closeMessageActionMenus(); };
+
+    let armed = false;
+    setTimeout(() => {
+        document.addEventListener('click',       dismiss);
+        document.addEventListener('contextmenu', dismiss);
+        document.addEventListener('keydown',     onKey);
+        window.addEventListener  ('blur',        dismiss);
+        armed = true;
+    }, 0);
+
+    menu._cleanup = () => {
+        wrapper?.classList.remove('msg-menu-open');
+        if (!armed) return;
+        document.removeEventListener('click',       dismiss);
+        document.removeEventListener('contextmenu', dismiss);
+        document.removeEventListener('keydown',     onKey);
+        window.removeEventListener  ('blur',        dismiss);
+    };
+}
+
+function closeMessageActionMenus() {
+    document.querySelectorAll('.msg-action-menu').forEach(m => {
+        try { m._cleanup?.(); } catch { /* noop */ }
+        m.remove();
+    });
+}
+
+async function promptEdit(msg) {
+    const trimmed = await openEditModal(msg.body || '');
+    if (trimmed == null || !trimmed || trimmed === (msg.body ?? '')) return;
+
+    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+    try {
+        const resp = await fetch('/dashboard/chats/edit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+            body: JSON.stringify({ messageId: msg.id, body: trimmed })
+        });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            showToast(err.error || 'Failed to edit message.', 'error');
+            return;
+        }
+        // SignalR will broadcast MessageEdited to all tabs (including this one) — UI updates from there.
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+    }
+}
+
+async function confirmDelete(msg) {
+    const ok = await openConfirmModal({
+        title: 'Delete for everyone?',
+        body: 'This message will be removed for both you and the contact. This cannot be undone.',
+        confirmLabel: 'Delete',
+        danger: true
+    });
+    if (!ok) return;
+
+    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+    try {
+        const resp = await fetch('/dashboard/chats/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+            body: JSON.stringify({ messageId: msg.id })
+        });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            showToast(err.error || 'Failed to delete message.', 'error');
+            return;
+        }
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+    }
+}
+
+/* ─── In-app modals (replace window.prompt / window.confirm) ─────── */
+
+function openModalShell(content) {
+    const overlay = document.createElement('div');
+    overlay.className = 'app-modal-overlay';
+    overlay.appendChild(content);
+    document.body.appendChild(overlay);
+    // Trap focus + clicks-outside-to-close
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.dataset.dismiss = 'true'; });
+    return overlay;
+}
+
+function openEditModal(initialText) {
+    return new Promise((resolve) => {
+        const dlg = document.createElement('div');
+        dlg.className = 'app-modal';
+        dlg.innerHTML = `
+            <div class="app-modal-head">
+                <h3>Edit message</h3>
+                <button type="button" class="app-modal-close" aria-label="Close">×</button>
+            </div>
+            <div class="app-modal-body">
+                <textarea class="app-modal-textarea" rows="4"></textarea>
+                <p class="app-modal-hint">WhatsApp only allows edits within ~15 minutes of sending.</p>
+            </div>
+            <div class="app-modal-foot">
+                <button type="button" class="app-modal-btn app-modal-btn-ghost" data-action="cancel">Cancel</button>
+                <button type="button" class="app-modal-btn app-modal-btn-primary" data-action="save">Save</button>
+            </div>
+        `;
+        const overlay = openModalShell(dlg);
+        const ta = dlg.querySelector('textarea');
+        ta.value = initialText;
+        setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 0);
+
+        const close = (val) => { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+        const onKey = (e) => {
+            if (e.key === 'Escape') close(null);
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) close(ta.value.trim());
+        };
+        document.addEventListener('keydown', onKey);
+        dlg.querySelector('[data-action="save"]').onclick = () => close(ta.value.trim());
+        dlg.querySelector('[data-action="cancel"]').onclick = () => close(null);
+        dlg.querySelector('.app-modal-close').onclick = () => close(null);
+        const watchOverlay = setInterval(() => {
+            if (overlay.dataset.dismiss === 'true') { clearInterval(watchOverlay); close(null); }
+        }, 50);
+    });
+}
+
+function openConfirmModal({ title, body, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false }) {
+    return new Promise((resolve) => {
+        const dlg = document.createElement('div');
+        dlg.className = 'app-modal app-modal-narrow';
+        dlg.innerHTML = `
+            <div class="app-modal-head">
+                <h3></h3>
+                <button type="button" class="app-modal-close" aria-label="Close">×</button>
+            </div>
+            <div class="app-modal-body">
+                <p class="app-modal-text"></p>
+            </div>
+            <div class="app-modal-foot">
+                <button type="button" class="app-modal-btn app-modal-btn-ghost" data-action="cancel"></button>
+                <button type="button" class="app-modal-btn ${danger ? 'app-modal-btn-danger' : 'app-modal-btn-primary'}" data-action="ok"></button>
+            </div>
+        `;
+        dlg.querySelector('h3').textContent = title;
+        dlg.querySelector('.app-modal-text').textContent = body;
+        dlg.querySelector('[data-action="cancel"]').textContent = cancelLabel;
+        dlg.querySelector('[data-action="ok"]').textContent = confirmLabel;
+
+        const overlay = openModalShell(dlg);
+        const close = (val) => { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+        const onKey = (e) => {
+            if (e.key === 'Escape') close(false);
+            if (e.key === 'Enter') close(true);
+        };
+        document.addEventListener('keydown', onKey);
+        dlg.querySelector('[data-action="ok"]').onclick = () => close(true);
+        dlg.querySelector('[data-action="cancel"]').onclick = () => close(false);
+        dlg.querySelector('.app-modal-close').onclick = () => close(false);
+        const watch = setInterval(() => {
+            if (overlay.dataset.dismiss === 'true') { clearInterval(watch); close(false); }
+        }, 50);
+    });
+}
+
+/// Caption modal used by the file picker AND the paste handler.
+/// Shows the file/preview, lets the user write a caption, returns either the caption (string,
+/// possibly empty) or null when the user cancels.
+function openCaptionModal(file) {
+    return new Promise((resolve) => {
+        const dlg = document.createElement('div');
+        dlg.className = 'app-modal';
+        dlg.innerHTML = `
+            <div class="app-modal-head">
+                <h3>Send file</h3>
+                <button type="button" class="app-modal-close" aria-label="Close">×</button>
+            </div>
+            <div class="app-modal-body">
+                <div class="app-modal-preview"></div>
+                <input type="text" class="app-modal-input" placeholder="Add a caption (optional)…" maxlength="1024" />
+            </div>
+            <div class="app-modal-foot">
+                <button type="button" class="app-modal-btn app-modal-btn-ghost" data-action="cancel">Cancel</button>
+                <button type="button" class="app-modal-btn app-modal-btn-primary" data-action="send">Send</button>
+            </div>
+        `;
+        const preview = dlg.querySelector('.app-modal-preview');
+        if (file.type.startsWith('image/')) {
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(file);
+            img.onload = () => URL.revokeObjectURL(img.src);
+            preview.appendChild(img);
+        } else if (file.type.startsWith('video/')) {
+            const v = document.createElement('video');
+            v.src = URL.createObjectURL(file);
+            v.controls = true;
+            v.preload = 'metadata';
+            preview.appendChild(v);
+        } else {
+            preview.innerHTML = `<div class="app-modal-file-card">
+                <div class="app-modal-file-icon">📎</div>
+                <div>
+                    <div class="app-modal-file-name">${escapeHtml(file.name)}</div>
+                    <div class="app-modal-file-size">${(file.size / 1024).toFixed(1)} KB · ${escapeHtml(file.type || 'unknown')}</div>
+                </div>
+            </div>`;
+        }
+
+        const overlay = openModalShell(dlg);
+        const input = dlg.querySelector('input');
+        setTimeout(() => input.focus(), 0);
+
+        const close = (val) => { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+        const onKey = (e) => {
+            if (e.key === 'Escape') close(null);
+            if (e.key === 'Enter') close(input.value.trim());
+        };
+        document.addEventListener('keydown', onKey);
+        dlg.querySelector('[data-action="send"]').onclick = () => close(input.value.trim());
+        dlg.querySelector('[data-action="cancel"]').onclick = () => close(null);
+        dlg.querySelector('.app-modal-close').onclick = () => close(null);
+        const watch = setInterval(() => {
+            if (overlay.dataset.dismiss === 'true') { clearInterval(watch); close(null); }
+        }, 50);
+    });
 }
 
 function applyMessageEdit(messageId, body, editedAtIso) {
@@ -678,6 +993,11 @@ function formatSidebarTime(iso) {
 const ICON_PATHS = {
     'check':         '<polyline points="20 6 9 17 4 12"/>',
     'check-double':  '<polyline points="7 11 11 15 17 9"/><polyline points="13 11 17 15 23 9"/>',
+    'more-vertical': '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>',
+    'more-horizontal':'<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+    'edit':          '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+    'trash':         '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
+    'chevron-down':  '<polyline points="6 9 12 15 18 9"/>',
 };
 
 function renderIcon(name, size = 16) {
@@ -766,3 +1086,177 @@ async function setLifecycle(stage) {
         showToast('Network error: ' + e.message, 'error');
     }
 }
+
+/* ─── Attach (image / file) ────────────────────────────────────────── */
+async function sendAttachment(event) {
+    const file = event.target.files?.[0];
+    event.target.value = ''; // reset so the same file can be picked twice
+    if (!file) return;
+    const caption = await openCaptionModal(file);
+    if (caption == null) return; // user cancelled
+    await uploadMediaFile(file, caption);
+}
+
+/// Shared upload helper used by file picker, paste handler, and (eventually) drag-and-drop.
+async function uploadMediaFile(file, caption) {
+    if (!file || !activeConversationId) return;
+
+    if (file.size > 30 * 1024 * 1024) {
+        showToast('File too large (max 30 MB).', 'error');
+        return;
+    }
+
+    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+    const fd = new FormData();
+    fd.append('conversationId', String(activeConversationId));
+    fd.append('file', file);
+    if (caption && caption.trim()) fd.append('caption', caption.trim());
+
+    showToast('Uploading…', 'info');
+    try {
+        const resp = await fetch('/dashboard/chats/send-media', {
+            method: 'POST',
+            headers: { 'RequestVerificationToken': token },
+            body: fd
+        });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            showToast(err.error || 'Upload failed.', 'error');
+            return;
+        }
+        // SignalR delivers the new bubble back to this tab.
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+    }
+}
+
+/// Clipboard paste — picks up images copied from anywhere (browser, screenshot tool,
+/// file explorer) and sends them through the same upload pipeline.
+function setupPasteHandler() {
+    const handler = async (e) => {
+        if (!activeConversationId) return;
+        const items = e.clipboardData?.items;
+        if (!items || items.length === 0) return;
+
+        for (const item of items) {
+            if (item.kind === 'file' && (item.type.startsWith('image/') || item.type.startsWith('video/'))) {
+                const file = item.getAsFile();
+                if (!file) continue;
+                e.preventDefault();
+                // Browsers paste clipboard images as "image.png" — give it a friendlier name with a timestamp.
+                const ext = (file.type.split('/')[1] || 'png').split('+')[0];
+                const stamped = new File([file], `pasted-${Date.now()}.${ext}`, { type: file.type });
+                const caption = await openCaptionModal(stamped);
+                if (caption == null) return;
+                await uploadMediaFile(stamped, caption);
+                return;
+            }
+        }
+    };
+
+    // Listen on the message input (most natural place to paste) AND on the chat window
+    // (so paste works even when the input doesn't have focus).
+    document.getElementById('messageInput')?.addEventListener('paste', handler);
+    document.getElementById('chatMessages')?.addEventListener('paste', handler);
+    // Make chatMessages focusable so it can receive paste events at all.
+    document.getElementById('chatMessages')?.setAttribute('tabindex', '0');
+}
+
+document.addEventListener('DOMContentLoaded', setupPasteHandler);
+
+/* ─── Voice notes (hold-to-record) ─────────────────────────────────── */
+let voiceRecorder = null;
+let voiceChunks = [];
+let voiceStartTs = 0;
+let voiceTimer = null;
+let voiceCancelled = false;
+
+function setupVoiceButton() {
+    const btn = document.getElementById('voiceBtn');
+    if (!btn) return;
+    btn.addEventListener('mousedown', startVoice);
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); startVoice(); });
+    btn.addEventListener('mouseup', stopVoice);
+    btn.addEventListener('mouseleave', () => { if (voiceRecorder) cancelVoice(); });
+    btn.addEventListener('touchend', stopVoice);
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && voiceRecorder) cancelVoice();
+    });
+}
+
+async function startVoice() {
+    if (voiceRecorder || !activeConversationId) return;
+    voiceCancelled = false;
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // WebM/Opus is universally supported in Chromium/Firefox; iOS Safari falls back to mp4.
+        const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+                  : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus'
+                  : '';
+        voiceRecorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+        voiceChunks = [];
+        voiceRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) voiceChunks.push(e.data); };
+        voiceRecorder.onstop = async () => {
+            stream.getTracks().forEach(t => t.stop());
+            const bar = document.getElementById('voiceRecordingBar');
+            bar?.classList.add('d-none');
+            clearInterval(voiceTimer);
+            if (voiceCancelled || voiceChunks.length === 0) { voiceRecorder = null; return; }
+
+            const blob = new Blob(voiceChunks, { type: voiceRecorder.mimeType || 'audio/webm' });
+            voiceRecorder = null;
+            await uploadVoice(blob);
+        };
+        voiceRecorder.start();
+        voiceStartTs = Date.now();
+        document.getElementById('voiceRecordingBar')?.classList.remove('d-none');
+        document.getElementById('voiceRecTime').textContent = '0:00';
+        voiceTimer = setInterval(() => {
+            const s = Math.floor((Date.now() - voiceStartTs) / 1000);
+            document.getElementById('voiceRecTime').textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+        }, 250);
+    } catch (e) {
+        showToast('Microphone access denied.', 'error');
+        voiceRecorder = null;
+    }
+}
+
+function stopVoice() {
+    if (!voiceRecorder) return;
+    if (Date.now() - voiceStartTs < 500) {
+        // Tap rather than hold — cancel.
+        cancelVoice();
+        return;
+    }
+    voiceRecorder.stop();
+}
+
+function cancelVoice() {
+    if (!voiceRecorder) return;
+    voiceCancelled = true;
+    voiceRecorder.stop();
+}
+
+async function uploadVoice(blob) {
+    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+    const fd = new FormData();
+    fd.append('conversationId', String(activeConversationId));
+    fd.append('audio', blob, 'voice.webm');
+
+    showToast('Sending voice note…', 'info');
+    try {
+        const resp = await fetch('/dashboard/chats/send-voice', {
+            method: 'POST',
+            headers: { 'RequestVerificationToken': token },
+            body: fd
+        });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            showToast(err.error || 'Voice note failed.', 'error');
+        }
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', setupVoiceButton);

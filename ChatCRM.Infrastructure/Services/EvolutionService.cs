@@ -33,35 +33,173 @@ namespace ChatCRM.Infrastructure.Services
             _logger = logger;
         }
 
-        public async Task<bool> SendMessageAsync(string instanceName, string phone, string message, CancellationToken cancellationToken = default)
+        public Task<EvolutionSendResult> SendMessageAsync(string instanceName, string phone, string message, CancellationToken cancellationToken = default)
+            => PostSendAsync($"/message/sendText/{instanceName}", new { number = phone, text = message }, instanceName, phone, cancellationToken);
+
+        public Task<EvolutionSendResult> SendMediaAsync(
+            string instanceName,
+            string phone,
+            string mediaType,
+            byte[] data,
+            string? mimeType,
+            string? fileName,
+            string? caption,
+            CancellationToken cancellationToken = default)
+        {
+            var payload = new
+            {
+                number = phone,
+                mediatype = mediaType,
+                mimetype = mimeType,
+                media = Convert.ToBase64String(data),
+                fileName = fileName ?? $"file{Path.GetRandomFileName()}",
+                caption = caption ?? string.Empty
+            };
+            return PostSendAsync($"/message/sendMedia/{instanceName}", payload, instanceName, phone, cancellationToken);
+        }
+
+        public Task<EvolutionSendResult> SendVoiceNoteAsync(
+            string instanceName,
+            string phone,
+            byte[] data,
+            CancellationToken cancellationToken = default)
+        {
+            var payload = new
+            {
+                number = phone,
+                audio = Convert.ToBase64String(data),
+                encoding = true
+            };
+            return PostSendAsync($"/message/sendWhatsAppAudio/{instanceName}", payload, instanceName, phone, cancellationToken);
+        }
+
+        public async Task<bool> EditMessageAsync(
+            string instanceName,
+            string remoteJid,
+            string externalMessageId,
+            string newText,
+            CancellationToken cancellationToken = default)
+        {
+            // Evolution's `number` field expects the bare phone, not the full JID.
+            var bareNumber = remoteJid.Split('@')[0];
+
+            var payload = new
+            {
+                number = bareNumber,
+                key = new { id = externalMessageId, remoteJid, fromMe = true },
+                text = newText
+            };
+            var json = JsonSerializer.Serialize(payload);
+
+            try
+            {
+                var client = _httpClientFactory.CreateClient("Evolution");
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var response = await client.PostAsync($"/chat/updateMessage/{instanceName}", content, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var err = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogError(
+                        "Evolution updateMessage failed {Status} for {Instance}/{Id}.\n  Request body: {Req}\n  Response body: {Resp}",
+                        response.StatusCode, instanceName, externalMessageId, json, err);
+                    return false;
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Edit threw for {Id} via {Instance}. Request body: {Req}", externalMessageId, instanceName, json);
+                return false;
+            }
+        }
+
+        public async Task<bool> DeleteMessageAsync(
+            string instanceName,
+            string remoteJid,
+            string externalMessageId,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var client = _httpClientFactory.CreateClient("Evolution");
+                var payload = new { id = externalMessageId, remoteJid, fromMe = true };
+                var req = new HttpRequestMessage(HttpMethod.Delete, $"/chat/deleteMessageForEveryone/{instanceName}")
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+                };
+                var response = await client.SendAsync(req, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var err = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogError("Evolution delete failed {Status} for {Instance}/{Id}: {Body}",
+                        response.StatusCode, instanceName, externalMessageId, err);
+                    return false;
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Delete failed for {Id} via {Instance}", externalMessageId, instanceName);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Shared POST helper used by SendMessage / SendMedia / SendVoice. Posts the payload,
+        /// parses Evolution's response, and surfaces (success, externalId, remoteJid) so the
+        /// caller can persist the IDs needed for later edit/delete.
+        /// </summary>
+        private async Task<EvolutionSendResult> PostSendAsync(
+            string path,
+            object payload,
+            string instanceName,
+            string phone,
+            CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(instanceName))
             {
-                _logger.LogError("SendMessageAsync called with empty instanceName.");
-                return false;
+                _logger.LogError("Outbound call to {Path} skipped — empty instance name.", path);
+                return new EvolutionSendResult(false, null, null);
             }
 
             try
             {
                 var client = _httpClientFactory.CreateClient("Evolution");
-                var payload = new { number = phone, text = message };
                 var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-
-                var response = await client.PostAsync($"/message/sendText/{instanceName}", content, cancellationToken);
+                var response = await client.PostAsync(path, content, cancellationToken);
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    var error = await response.Content.ReadAsStringAsync(cancellationToken);
-                    _logger.LogError("Evolution API error {Status} for {Instance}: {Body}", response.StatusCode, instanceName, error);
-                    return false;
+                    var err = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogError("Evolution {Path} returned {Status}: {Body}", path, response.StatusCode, err);
+                    return new EvolutionSendResult(false, null, null);
                 }
 
-                return true;
+                var raw = await response.Content.ReadAsStringAsync(cancellationToken);
+                string? externalId = null;
+                string? remoteJid = null;
+                try
+                {
+                    using var doc = JsonDocument.Parse(raw);
+                    if (doc.RootElement.TryGetProperty("key", out var key))
+                    {
+                        if (key.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.String)
+                            externalId = idEl.GetString();
+                        if (key.TryGetProperty("remoteJid", out var jidEl) && jidEl.ValueKind == JsonValueKind.String)
+                            remoteJid = jidEl.GetString();
+                    }
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogWarning(ex, "Could not parse Evolution response for {Path}: {Body}", path, raw);
+                }
+
+                return new EvolutionSendResult(true, externalId, remoteJid);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send WhatsApp message to {Phone} via {Instance}", phone, instanceName);
-                return false;
+                _logger.LogError(ex, "Outbound {Path} threw for {Instance}/{Phone}", path, instanceName, phone);
+                return new EvolutionSendResult(false, null, null);
             }
         }
 
@@ -167,6 +305,7 @@ namespace ChatCRM.Infrastructure.Services
                 contact = new WhatsAppContact
                 {
                     PhoneNumber = phone,
+                    RemoteJid = rawJid,
                     DisplayName = payload.Data.PushName,
                     Country = PhoneCountryDetector.Detect(phone),
                     CreatedAt = DateTime.UtcNow
@@ -174,9 +313,14 @@ namespace ChatCRM.Infrastructure.Services
                 _db.WhatsAppContacts.Add(contact);
                 await _db.SaveChangesAsync(cancellationToken);
             }
-            else if (contact.DisplayName is null && payload.Data.PushName is not null)
+            else
             {
-                contact.DisplayName = payload.Data.PushName;
+                if (contact.DisplayName is null && payload.Data.PushName is not null)
+                    contact.DisplayName = payload.Data.PushName;
+                // Always refresh RemoteJid — the contact may have switched between @s.whatsapp.net
+                // and @lid forms over time, and we need the most recent one for edit/delete.
+                if (!string.IsNullOrEmpty(rawJid) && contact.RemoteJid != rawJid)
+                    contact.RemoteJid = rawJid;
             }
 
             // Hard-block check — if the user has blocked this contact, the message is dropped silently.
