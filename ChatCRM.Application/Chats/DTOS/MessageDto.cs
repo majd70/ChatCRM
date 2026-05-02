@@ -15,5 +15,8 @@ namespace ChatCRM.Application.Chats.DTOs
         public string? MediaUrl { get; set; }
         public string? MediaMimeType { get; set; }
         public string? MediaFileName { get; set; }
+
+        public DateTime? EditedAt { get; set; }
+        public bool IsDeleted { get; set; }
     }
 }

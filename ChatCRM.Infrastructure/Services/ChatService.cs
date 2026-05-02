@@ -74,6 +74,7 @@ namespace ChatCRM.Infrastructure.Services
                     LastMessage = c.Messages
                         .OrderByDescending(m => m.SentAt)
                         .Select(m =>
+                            m.IsDeleted ? "\U0001F6AB Message deleted" :
                             m.Kind == MessageKind.Text || !string.IsNullOrEmpty(m.Body) ? m.Body :
                             m.Kind == MessageKind.Image    ? "\U0001F4F7 Photo" :
                             m.Kind == MessageKind.Video    ? "\U0001F3A5 Video" :
@@ -111,6 +112,8 @@ namespace ChatCRM.Infrastructure.Services
                     MediaUrl = m.MediaUrl,
                     MediaMimeType = m.MediaMimeType,
                     MediaFileName = m.MediaFileName,
+                    EditedAt = m.EditedAt,
+                    IsDeleted = m.IsDeleted,
                     AuthorName = m.AuthorUser != null
                         ? (string.IsNullOrWhiteSpace(m.AuthorUser.FirstName) ? m.AuthorUser.Email : m.AuthorUser.FirstName + " " + m.AuthorUser.LastName)
                         : null

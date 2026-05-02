@@ -67,10 +67,7 @@ namespace ChatCRM.Infrastructure.Services
 
         public async Task HandleIncomingWebhookAsync(WebhookPayloadDto payload, CancellationToken cancellationToken = default)
         {
-            if (payload.Data?.Key is null || payload.Data.Message is null)
-                return;
-
-            if (payload.Data.Key.FromMe)
+            if (payload.Data is null)
                 return;
 
             if (string.IsNullOrWhiteSpace(payload.Instance))
@@ -89,6 +86,50 @@ namespace ChatCRM.Infrastructure.Services
                 return;
             }
 
+            // ── messages.delete ─────────────────────────────────────────────────────
+            // Payload shape: { event:"messages.delete", data:{ id:"...", status:"DELETED", ... } }
+            if (string.Equals(payload.Event, "messages.delete", StringComparison.OrdinalIgnoreCase))
+            {
+                var deletedId = payload.Data.Id ?? payload.Data.Key?.Id;
+                if (!string.IsNullOrEmpty(deletedId))
+                    await MarkMessageDeletedAsync(deletedId, instance.Id, cancellationToken);
+                return;
+            }
+
+            // ── messages.update ─────────────────────────────────────────────────────
+            // Payload shape: { event:"messages.update", data:{ keyId:"...", message:{ editedMessage:{ message:{ conversation:"..." } } } } }
+            if (string.Equals(payload.Event, "messages.update", StringComparison.OrdinalIgnoreCase))
+            {
+                var targetId = payload.Data.KeyId ?? payload.Data.Key?.Id;
+                if (string.IsNullOrEmpty(targetId)) return;
+
+                var newBody = ExtractEditedBody(payload.Data.Message);
+                if (string.IsNullOrEmpty(newBody))
+                {
+                    // status-only update (READ / DELIVERED / etc.) — nothing to render.
+                    return;
+                }
+
+                await ApplyMessageEditAsync(targetId, newBody, instance.Id, cancellationToken);
+                return;
+            }
+
+            // ── messages.upsert (default) — needs key + message ─────────────────────
+            if (payload.Data.Key is null || payload.Data.Message is null)
+                return;
+
+            if (payload.Data.Key.FromMe)
+                return;
+
+            // Some Baileys versions deliver edits/revokes inline with upsert as a protocolMessage.
+            var protocolEnvelope = payload.Data.Message.ProtocolMessage
+                                ?? payload.Data.Message.EditedMessage?.Message?.ProtocolMessage;
+            if (protocolEnvelope is not null)
+            {
+                await HandleProtocolMessageAsync(protocolEnvelope, instance.Id, cancellationToken);
+                return;
+            }
+
             var externalId = payload.Data.Key.Id;
 
             // Deduplicate
@@ -103,10 +144,15 @@ namespace ChatCRM.Infrastructure.Services
 
             var (kind, body, mime, fileName) = ResolveMessagePayload(payload.Data);
 
-            // If we couldn't classify it as anything we render, skip silently.
-            // (Reactions, typing, presence, protocol messages, etc. fall through here.)
+            // If we couldn't classify it as anything we render, log what Evolution sent
+            // so we can extend ResolveMessagePayload (reactions, polls, contacts, etc.).
             if (kind == MessageKind.Text && string.IsNullOrWhiteSpace(body))
+            {
+                _logger.LogInformation(
+                    "Unhandled inbound payload — event={Event} messageType={MessageType} externalId={Id}",
+                    "messages.upsert", payload.Data.MessageType, externalId);
                 return;
+            }
 
             var sentAt = payload.Data.MessageTimestamp > 0
                 ? DateTimeOffset.FromUnixTimeSeconds(payload.Data.MessageTimestamp).UtcDateTime
@@ -220,6 +266,126 @@ namespace ChatCRM.Infrastructure.Services
                     },
                     unreadCount = conversation.UnreadCount
                 }, cancellationToken);
+        }
+
+        /// <summary>
+        /// Applies a Baileys protocolMessage (edit or revoke) to the previously stored
+        /// message identified by protocol.Key.Id. Used by the messages.upsert path when
+        /// some Baileys builds deliver edits/revokes inline rather than as messages.update.
+        /// </summary>
+        private async Task HandleProtocolMessageAsync(
+            WebhookProtocolMessage protocol,
+            int instanceId,
+            CancellationToken cancellationToken)
+        {
+            var targetExternalId = protocol.Key?.Id;
+            _logger.LogInformation(
+                "protocolMessage received — type={Type} targetId={TargetId} hasEditedPayload={HasEdit}",
+                protocol.Type, targetExternalId, protocol.EditedMessage is not null);
+
+            if (string.IsNullOrEmpty(targetExternalId))
+                return;
+
+            var hasEditPayload = protocol.EditedMessage is not null;
+            var isRevoke = protocol.Type == 0 && !hasEditPayload;
+
+            if (isRevoke)
+            {
+                await MarkMessageDeletedAsync(targetExternalId, instanceId, cancellationToken);
+                return;
+            }
+
+            if (hasEditPayload)
+            {
+                var newBody = ExtractEditedBody(protocol.EditedMessage);
+                if (!string.IsNullOrEmpty(newBody))
+                    await ApplyMessageEditAsync(targetExternalId, newBody, instanceId, cancellationToken);
+            }
+        }
+
+        private async Task MarkMessageDeletedAsync(string externalId, int instanceId, CancellationToken cancellationToken)
+        {
+            var original = await _db.Messages
+                .FirstOrDefaultAsync(m => m.ExternalId == externalId, cancellationToken);
+            if (original is null)
+            {
+                _logger.LogInformation("Delete for unknown external message {Id} — ignored.", externalId);
+                return;
+            }
+
+            if (original.IsDeleted) return;
+
+            original.IsDeleted = true;
+            original.Body = string.Empty;
+            original.MediaUrl = null;
+            original.MediaMimeType = null;
+            original.MediaFileName = null;
+            await _db.SaveChangesAsync(cancellationToken);
+
+            await _hub.Clients.Group(ChatHub.InstanceGroupName(instanceId))
+                .SendAsync("MessageDeleted", new
+                {
+                    instanceId,
+                    conversationId = original.ConversationId,
+                    messageId = original.Id
+                }, cancellationToken);
+        }
+
+        private async Task ApplyMessageEditAsync(string externalId, string newBody, int instanceId, CancellationToken cancellationToken)
+        {
+            var original = await _db.Messages
+                .FirstOrDefaultAsync(m => m.ExternalId == externalId, cancellationToken);
+            if (original is null)
+            {
+                _logger.LogInformation("Edit for unknown external message {Id} — ignored.", externalId);
+                return;
+            }
+
+            original.Body = newBody;
+            original.EditedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+
+            await _hub.Clients.Group(ChatHub.InstanceGroupName(instanceId))
+                .SendAsync("MessageEdited", new
+                {
+                    instanceId,
+                    conversationId = original.ConversationId,
+                    messageId = original.Id,
+                    body = original.Body,
+                    editedAt = original.EditedAt
+                }, cancellationToken);
+        }
+
+        /// <summary>
+        /// Walks a WebhookMessageContent looking for the new body of an edited message.
+        /// Handles both shallow (editedMessage.message.conversation — used by messages.update)
+        /// and deep (editedMessage.message.protocolMessage.editedMessage.conversation — used
+        /// by some Baileys upsert deliveries) shapes.
+        /// </summary>
+        private static string? ExtractEditedBody(WebhookMessageContent? content)
+        {
+            if (content is null) return null;
+
+            // Direct body fields on this level.
+            var direct = content.Conversation
+                       ?? content.ExtendedTextMessage?.Text
+                       ?? content.ImageMessage?.Caption
+                       ?? content.VideoMessage?.Caption
+                       ?? content.DocumentMessage?.Caption
+                       ?? content.DocumentWithCaptionMessage?.Message?.DocumentMessage?.Caption;
+            if (!string.IsNullOrEmpty(direct)) return direct;
+
+            // Recurse into a nested editedMessage.message wrapper.
+            var nested = content.EditedMessage?.Message;
+            if (nested is not null)
+            {
+                var fromNested = ExtractEditedBody(nested);
+                if (!string.IsNullOrEmpty(fromNested)) return fromNested;
+            }
+
+            // Recurse into a protocolMessage.editedMessage.
+            var fromProtocol = ExtractEditedBody(content.ProtocolMessage?.EditedMessage);
+            return fromProtocol;
         }
 
         /// <summary>

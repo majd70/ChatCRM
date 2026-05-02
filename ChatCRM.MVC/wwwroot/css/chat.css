@@ -462,6 +462,26 @@ body.chat-shell {
     color: #777;
 }
 
+/* Deleted bubble — replaces content with a muted placeholder */
+.msg-bubble-deleted {
+    font-style: italic;
+    color: #888;
+    background: rgba(0,0,0,0.04) !important;
+    box-shadow: none !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.msg.outgoing .msg-bubble-deleted { background: rgba(0,0,0,0.04) !important; }
+.msg-deleted-icon { font-size: 14px; opacity: 0.7; }
+
+/* "edited" indicator inside .msg-meta */
+.msg-edited-tag {
+    font-size: 10px;
+    color: #999;
+    font-style: italic;
+}
+
 /* Image lightbox — click an image bubble to view it full-size */
 .msg-lightbox {
     position: fixed;

@@ -56,6 +56,12 @@ namespace ChatCRM.Domain.Entities
 
         public DateTime SentAt { get; set; } = DateTime.UtcNow;
 
+        /// <summary>Set when the contact edits the message on WhatsApp; null otherwise.</summary>
+        public DateTime? EditedAt { get; set; }
+
+        /// <summary>True when the contact revokes ("delete for everyone") the message on WhatsApp.</summary>
+        public bool IsDeleted { get; set; }
+
         /// <summary>
         /// Author user ID for internal notes (null for incoming/outgoing chat messages).
         /// </summary>

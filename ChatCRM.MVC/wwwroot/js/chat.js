@@ -43,6 +43,14 @@ connection.on('ConversationRead', ({ conversationId, instanceId, instanceUnread 
     if (instanceId) updateInstanceDropdownUnread(instanceId, instanceUnread);
 });
 
+connection.on('MessageEdited', ({ conversationId, messageId, body, editedAt }) => {
+    if (conversationId === activeConversationId) applyMessageEdit(messageId, body, editedAt);
+});
+
+connection.on('MessageDeleted', ({ conversationId, messageId }) => {
+    if (conversationId === activeConversationId) applyMessageDelete(messageId);
+});
+
 connection.on('InstanceStatusChanged', ({ id, status }) => {
     if (id === activeInstanceId) {
         location.reload();
@@ -373,7 +381,10 @@ function buildBubble(msg) {
     const kind = msg.kind ?? MSG_KIND.TEXT;
     const mediaUrl = msg.mediaUrl;
 
-    if (kind === MSG_KIND.TEXT || !mediaUrl) {
+    if (msg.isDeleted) {
+        bubble.classList.add('msg-bubble-deleted');
+        bubble.innerHTML = `<span class="msg-deleted-icon">🚫</span> Message deleted`;
+    } else if (kind === MSG_KIND.TEXT || !mediaUrl) {
         // Plain text — or media that hasn't been fetched yet (placeholder).
         if (mediaUrl == null && kind !== MSG_KIND.TEXT) {
             bubble.classList.add('msg-bubble-pending');
@@ -443,6 +454,13 @@ function buildBubble(msg) {
     meta.className = 'msg-meta';
     meta.textContent = formatMsgTime(msg.sentAt);
 
+    if (msg.editedAt && !msg.isDeleted) {
+        const editedTag = document.createElement('span');
+        editedTag.className = 'msg-edited-tag';
+        editedTag.textContent = 'edited';
+        meta.appendChild(editedTag);
+    }
+
     if (isOutgoing) {
         const tick = document.createElement('span');
         tick.className = 'msg-tick' + (msg.status >= 2 ? ' msg-tick-read' : '');
@@ -453,6 +471,47 @@ function buildBubble(msg) {
     wrapper.appendChild(bubble);
     wrapper.appendChild(meta);
     return wrapper;
+}
+
+function applyMessageEdit(messageId, body, editedAtIso) {
+    const wrapper = document.querySelector(`.msg[data-msg-id="${messageId}"]`);
+    if (!wrapper) return;
+    const bubble = wrapper.querySelector('.msg-bubble');
+    if (!bubble) return;
+    // For text bubbles we replace .textContent. For media bubbles, the body is the caption —
+    // find or create a .msg-caption element instead of stomping the <img>/<video>/etc.
+    if (bubble.classList.contains('msg-bubble-media') || bubble.classList.contains('msg-bubble-doc')) {
+        let cap = bubble.querySelector('.msg-caption');
+        if (!cap) {
+            cap = document.createElement('div');
+            cap.className = 'msg-caption';
+            bubble.appendChild(cap);
+        }
+        cap.textContent = body;
+    } else {
+        bubble.textContent = body;
+    }
+    const meta = wrapper.querySelector('.msg-meta');
+    if (meta && !meta.querySelector('.msg-edited-tag')) {
+        const tag = document.createElement('span');
+        tag.className = 'msg-edited-tag';
+        tag.textContent = 'edited';
+        // Insert before the read-receipt tick if present
+        const tick = meta.querySelector('.msg-tick');
+        if (tick) meta.insertBefore(tag, tick);
+        else meta.appendChild(tag);
+    }
+}
+
+function applyMessageDelete(messageId) {
+    const wrapper = document.querySelector(`.msg[data-msg-id="${messageId}"]`);
+    if (!wrapper) return;
+    const bubble = wrapper.querySelector('.msg-bubble');
+    if (!bubble) return;
+    bubble.className = 'msg-bubble msg-bubble-deleted';
+    bubble.innerHTML = `<span class="msg-deleted-icon">🚫</span> Message deleted`;
+    // Strip any "edited" tag from the meta row.
+    wrapper.querySelector('.msg-edited-tag')?.remove();
 }
 
 function mediaPendingLabel(kind, fileName) {
